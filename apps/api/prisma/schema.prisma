@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  STUDENT
+  STAFF
+  MANAGEMENT
+  ADMIN
+
+  @@map("user_role")
+}
+
+model User {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String   @unique @db.VarChar(255)
+  passwordHash  String   @map("password_hash")
+  role          UserRole
+  canApprove    Boolean  @default(false) @map("can_approve")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("users")
+}
+
+model ActivityType {
+  id   Int    @id @default(autoincrement()) @db.SmallInt
+  code String @unique @db.VarChar(40)
+  name String @db.VarChar(100)
+
+  @@map("activity_types")
+}
+
+model RecordClass {
+  code           String @id @db.VarChar(40)
+  name           String @db.VarChar(150)
+  retentionYears Int    @map("retention_years") @db.SmallInt
+
+  @@map("record_classes")
+}
+
+model School {
+  id   Int    @id @default(autoincrement()) @db.SmallInt
+  name String @unique @db.VarChar(255)
+
+  @@map("schools")
+}
+
+model AuditLog {
+  id          BigInt    @id @default(autoincrement())
+  occurredAt  DateTime  @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  source      String
+  eventType   String    @map("event_type")
+  tableName   String?   @map("table_name")
+  recordId    String?   @map("record_id")
+  operation   String?
+  oldData     Json?     @map("old_data")
+  newData     Json?     @map("new_data")
+  actorUserId String?   @map("actor_user_id") @db.Uuid
+  actorIp     Unsupported("inet")? @map("actor_ip")
+  requestId   String?   @map("request_id")
+
+  @@map("audit_log")
+}

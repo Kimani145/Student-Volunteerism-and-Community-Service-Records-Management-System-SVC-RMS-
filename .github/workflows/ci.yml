@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: svc_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: ******127.0.0.1:5432/svc_test
+      JWT_ACCESS_SECRET: 12345678901234567890123456789012
+      REFRESH_TOKEN_PEPPER: 1234567890123456
+      QR_MASTER_SECRET: abcdefghijklmnopqrstuvwxyz123456
+      CERT_SIGNING_PRIVATE_KEY: placeholder-private-key
+      CERT_SIGNING_KEY_ID: key-1
+      PUBLIC_WEB_ORIGIN: http://localhost:3000
+      ALLOWED_STUDENT_EMAIL_DOMAINS: example.test
+      SMTP_URL: smtp://localhost:1025
+      MAIL_FROM: noreply@example.test
+      STORAGE_ROOT: /tmp/svc-rms-storage
+      MAX_UPLOAD_BYTES: "10485760"
+      ISSUER_NAME: SVC-RMS
+      SIGNATORY_1_NAME: Sig One
+      SIGNATORY_1_TITLE: Title One
+      SIGNATORY_2_NAME: Sig Two
+      SIGNATORY_2_TITLE: Title Two
+      NODE_ENV: test
+      LOG_LEVEL: info
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.14.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm db:migrate
+      - run: pnpm test
+      - run: pnpm audit:verify
+      - run: pnpm trace:check
+      - run: pnpm audit --prod --audit-level=high
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
