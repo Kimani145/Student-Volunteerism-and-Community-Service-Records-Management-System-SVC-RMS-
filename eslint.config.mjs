@@ -17,6 +17,7 @@ export default [
       '@typescript-eslint': plugin,
     },
     rules: {
+      'no-undef': 'off',
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': [
         'error',
