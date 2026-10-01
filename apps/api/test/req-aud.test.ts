@@ -5,6 +5,8 @@ import request from 'supertest';
 import pg from 'pg';
 import { createApp } from '../src/main.js';
 import { applyTestEnv } from './test-env.js';
+import { PrismaService } from '../src/prisma/prisma.service.js';
+import { AuditContextStorage } from '../src/prisma/audit-context.storage.js';
 
 const { Client } = pg;
 const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
@@ -52,28 +54,90 @@ describeDb('REQ-AUD-01 / REQ-AUD-02 / REQ-AUD-04', () => {
     await client.end();
   });
 
-  it('attributes actor identity via request context (REQ-AUD-02)', async () => {
+  it('attributes actor identity via request context and normal prisma.student.create calls (REQ-AUD-02)', async () => {
     const app = await createApp();
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
 
+    // 1. Through HTTP endpoint using ALS context without manual tx wrapper
     const actorId = '11111111-1111-4111-8111-111111111111';
-    await request(app.getHttpServer())
+    const httpRes = await request(app.getHttpServer())
       .post('/api/v1/_test/audit-attribution')
-      .send({ userId: actorId, email: 'aud-actor@example.test' })
+      .send({ userId: actorId, email: `aud-actor-${Date.now()}@example.test` })
       .expect(201);
 
     const client = new Client({ connectionString: process.env.DATABASE_URL });
     await client.connect();
     const row = await client.query(
-      `SELECT actor_user_id
+      `SELECT actor_user_id, host(actor_ip) AS actor_ip, request_id
        FROM audit_log
-       WHERE table_name = 'users' AND record_id = $1
+       WHERE table_name = 'students' AND record_id = $1
        ORDER BY id DESC
        LIMIT 1`,
-      [actorId],
+      [httpRes.body.studentId],
     );
     expect(row.rows[0]?.actor_user_id).toBe(actorId);
+    expect(row.rows[0]?.actor_ip).toBe('127.0.0.1');
+    expect(row.rows[0]?.request_id).toBeDefined();
+
+    // 2. Direct normal prisma.student.create(...) call through Prisma client extension
+    const prisma = app.get(PrismaService);
+    const storage = app.get(AuditContextStorage);
+
+    const directActorId = '22222222-2222-4222-8222-222222222222';
+    const school = await prisma.school.findFirst();
+    const directUser = await prisma.user.create({
+      data: {
+        email: `direct-student-user-${Date.now()}@example.test`,
+        passwordHash: 'dummy',
+        role: 'STUDENT',
+      },
+    });
+
+    const student = await storage.run(
+      { userId: directActorId, clientIp: '10.20.30.40', requestId: 'req-direct-aud-02' },
+      async () => {
+        return prisma.student.create({
+          data: {
+            user_id: directUser.id,
+            reg_number: `REG-DIR-${Date.now()}`,
+            full_name: 'Direct Extension Student',
+            school_id: school!.id,
+            programme: 'BSc Software Engineering',
+            year_of_study: 2,
+          },
+        });
+      },
+    );
+
+    const directRow = await client.query(
+      `SELECT actor_user_id, host(actor_ip) AS actor_ip, request_id
+       FROM audit_log
+       WHERE table_name = 'students' AND record_id = $1
+       ORDER BY id DESC
+       LIMIT 1`,
+      [student.id],
+    );
+    expect(directRow.rows[0]?.actor_user_id).toBe(directActorId);
+    expect(directRow.rows[0]?.actor_ip).toBe('10.20.30.40');
+    expect(directRow.rows[0]?.request_id).toBe('req-direct-aud-02');
+
+    // 3. Proves that writes without audit context throw in production
+    const prevEnv = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = 'production';
+      await expect(
+        prisma.user.create({
+          data: {
+            email: `unauthorized-audit-${Date.now()}@example.test`,
+            passwordHash: 'dummy',
+            role: 'STUDENT',
+          },
+        }),
+      ).rejects.toThrow('Audit context required for write operations');
+    } finally {
+      process.env.NODE_ENV = prevEnv;
+    }
 
     await client.end();
     await app.close();
@@ -131,6 +195,10 @@ describeDb('REQ-AUD-01 / REQ-AUD-02 / REQ-AUD-04', () => {
     }
 
     try {
+      await adminClient.query(
+        `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()`,
+        [mainDbName],
+      );
       await adminClient.query(`CREATE DATABASE ${throwawayDb} TEMPLATE ${mainDbName}`);
       const throwawayUrl = new URL(mainDbUrl);
       throwawayUrl.pathname = `/${throwawayDb}`;
@@ -172,8 +240,12 @@ describeDb('REQ-AUD-01 / REQ-AUD-02 / REQ-AUD-04', () => {
         await throwawayClient.end();
       }
     } finally {
+      await adminClient.query(
+        `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()`,
+        [throwawayDb],
+      );
       await adminClient.query(`DROP DATABASE IF EXISTS ${throwawayDb}`);
       await adminClient.end();
     }
-  });
+  }, 30000);
 });

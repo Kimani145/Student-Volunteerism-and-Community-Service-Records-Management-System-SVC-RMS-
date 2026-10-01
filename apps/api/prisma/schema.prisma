@@ -78,7 +78,7 @@ model User {
   email_tokens                                email_tokens[]
   notifications                               notifications[]
   sessions                                    sessions[]
-  students                                    students?
+  student                                     Student?
 
   @@map("users")
 }
@@ -102,9 +102,9 @@ model RecordClass {
 }
 
 model School {
-  id       Int        @id @default(autoincrement()) @db.SmallInt
-  name     String     @unique @db.VarChar(255)
-  students students[]
+  id       Int       @id @default(autoincrement()) @db.SmallInt
+  name     String    @unique @db.VarChar(255)
+  students Student[]
 
   @@map("schools")
 }
@@ -308,7 +308,7 @@ model participations {
   attendances           attendances?
   certificates          certificates[]
   activities            activities           @relation(fields: [activity_id], references: [id], onUpdate: NoAction)
-  students              students             @relation(fields: [student_id], references: [id], onUpdate: NoAction)
+  students              Student              @relation(fields: [student_id], references: [id], onUpdate: NoAction)
 
   @@unique([student_id, activity_id])
   @@index([activity_id, status], map: "ix_participations_activity_status")
@@ -331,7 +331,7 @@ model sessions {
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model students {
+model Student {
   id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id        String           @unique @db.Uuid
   reg_number     String           @unique @db.VarChar(50)
@@ -346,6 +346,8 @@ model students {
   participations participations[]
   schools        School           @relation(fields: [school_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   users          User             @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@map("students")
 }
 
 enum UserRole {
