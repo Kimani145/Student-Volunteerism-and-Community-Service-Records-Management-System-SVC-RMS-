@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "rootDir": ".",
+    "baseUrl": ".",
+    "types": ["node", "vitest/globals"],
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"]
+}

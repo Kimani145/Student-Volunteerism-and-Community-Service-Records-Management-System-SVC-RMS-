@@ -1,0 +1,14 @@
+{
+  "S0": {
+    "status": "active",
+    "reqs": [
+      "REQ-OPS-01",
+      "REQ-OPS-03",
+      "REQ-OPS-04",
+      "REQ-AUD-01",
+      "REQ-AUD-02",
+      "REQ-AUD-04",
+      "REQ-AUTH-07"
+    ]
+  }
+}
