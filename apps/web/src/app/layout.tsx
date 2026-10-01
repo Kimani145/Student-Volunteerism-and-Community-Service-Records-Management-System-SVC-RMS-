@@ -19,7 +19,7 @@ export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
-}>): Promise<JSX.Element> {
+}>): Promise<React.JSX.Element> {
   const role = parseRole(process.env.NEXT_PUBLIC_DEMO_ROLE);
 
   return (

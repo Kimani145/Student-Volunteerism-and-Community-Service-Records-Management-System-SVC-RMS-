@@ -1,4 +1,4 @@
-export default function Home(): JSX.Element {
+export default function Home(): React.JSX.Element {
   return (
     <section className="space-y-3">
       <h1 className="text-2xl font-semibold">SVC-RMS scaffold</h1>

@@ -27,7 +27,7 @@ const roleNav: Record<UserRole, NavItem[]> = {
   ],
 };
 
-export function NavShell({ role }: { role?: UserRole }): JSX.Element {
+export function NavShell({ role }: { role?: UserRole }): React.JSX.Element {
   const items = role ? roleNav[role] : publicNav;
 
   return (
