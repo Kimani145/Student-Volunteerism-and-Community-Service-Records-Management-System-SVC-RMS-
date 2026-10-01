@@ -1,4 +1,4 @@
-import { Body, Controller, InternalServerErrorException, Post } from '@nestjs/common';
+import { Body, Controller, Inject, InternalServerErrorException, Post } from '@nestjs/common';
 import { Public } from '../auth/public.decorator.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { randomUUID } from 'node:crypto';
@@ -12,7 +12,7 @@ const bodySchema = strictObject({
 
 @Controller('/_test')
 export class AuditTestController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   @Post('/audit-attribution')
   @Public()

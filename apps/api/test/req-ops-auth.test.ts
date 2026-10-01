@@ -56,6 +56,7 @@ describe('REQ-OPS-01', () => {
     applyTestEnv();
     const app = await createApp();
     await app.init();
+    await app.getHttpAdapter().getInstance().ready();
 
     const http = app.getHttpServer();
     await request(http).get('/api/v1/healthz').expect(200);

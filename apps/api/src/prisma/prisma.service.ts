@@ -1,10 +1,10 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { AuditContext, AuditContextStorage } from './audit-context.storage.js';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleDestroy {
-  constructor(private readonly auditContextStorage: AuditContextStorage) {
+  constructor(@Inject(AuditContextStorage) private readonly auditContextStorage: AuditContextStorage) {
     super();
   }
 

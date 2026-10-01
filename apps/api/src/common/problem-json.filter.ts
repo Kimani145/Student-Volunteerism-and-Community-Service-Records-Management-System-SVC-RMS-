@@ -9,8 +9,14 @@ export class ProblemJsonFilter implements ExceptionFilter {
     const response = ctx.getResponse();
     const request = ctx.getRequest<{ url: string }>();
 
-    const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
-    const payload = exception instanceof HttpException ? exception.getResponse() : undefined;
+    const isHttpException =
+      exception instanceof HttpException ||
+      (typeof exception === 'object' &&
+        exception !== null &&
+        'getStatus' in exception &&
+        typeof (exception as { getStatus: unknown }).getStatus === 'function');
+    const status = isHttpException ? (exception as HttpException).getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
+    const payload = isHttpException ? (exception as HttpException).getResponse() : undefined;
 
     const detail =
       typeof payload === 'object' && payload !== null && 'detail' in payload

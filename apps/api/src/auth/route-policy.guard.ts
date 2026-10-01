@@ -18,7 +18,7 @@ type RequestLike = {
 
 @Injectable()
 export class RoutePolicyGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(private readonly reflector: Reflector = new Reflector()) {}
 
   canActivate(context: ExecutionContext): boolean {
     const isPublic = this.reflector.getAllAndOverride<boolean>(PUBLIC_KEY, [
