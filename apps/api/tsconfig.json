@@ -5,6 +5,7 @@
     "emitDecoratorMetadata": true,
     "rootDir": ".",
     "baseUrl": ".",
+    "types": ["node", "vitest/globals"],
     "paths": {
       "@/*": ["src/*"]
     }

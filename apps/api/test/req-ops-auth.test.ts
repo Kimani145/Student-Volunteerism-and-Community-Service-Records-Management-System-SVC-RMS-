@@ -1,4 +1,4 @@
-import { PATH_METADATA, METHOD_METADATA } from '@nestjs/common/constants';
+import { PATH_METADATA, METHOD_METADATA } from '@nestjs/common/constants.js';
 import request from 'supertest';
 import { createApp, pinoHttpOptions } from '../src/main.js';
 import { applyTestEnv } from './test-env.js';
@@ -32,7 +32,10 @@ describe('REQ-AUTH-07', () => {
       const methodNames = Object.getOwnPropertyNames(prototype).filter((name) => name !== 'constructor');
 
       for (const methodName of methodNames) {
-        const handler = prototype[methodName];
+        const handler = (prototype as Record<string, unknown>)[methodName];
+        if (typeof handler !== 'function') {
+          continue;
+        }
         if (Reflect.getMetadata(PATH_METADATA, handler) === undefined) {
           continue;
         }
