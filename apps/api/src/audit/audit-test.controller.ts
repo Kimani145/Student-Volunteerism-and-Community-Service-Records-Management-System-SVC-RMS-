@@ -1,8 +1,9 @@
-import { Body, Controller, Inject, InternalServerErrorException, Post } from '@nestjs/common';
+import { Body, Controller, Get, Inject, InternalServerErrorException, Post } from '@nestjs/common';
 import { Public } from '../auth/public.decorator.js';
+import { Roles } from '../auth/roles.decorator.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { randomUUID } from 'node:crypto';
-import { strictObject } from '@svc-rms/shared';
+import { UserRole, strictObject } from '@svc-rms/shared';
 import { z } from 'zod';
 
 const bodySchema = strictObject({
@@ -13,6 +14,12 @@ const bodySchema = strictObject({
 @Controller('/_test')
 export class AuditTestController {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+
+  @Get('/protected')
+  @Roles(UserRole.ADMIN)
+  protectedEndpoint(): { ok: true } {
+    return { ok: true };
+  }
 
   @Post('/audit-attribution')
   @Public()

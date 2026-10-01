@@ -10,7 +10,9 @@ import { pinoHttpOptions } from './config/logger.js';
 export async function createApp(): Promise<NestFastifyApplication> {
   parseEnv(process.env);
 
-  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
+  const rootModule = process.env.NODE_ENV === 'test' ? AppModule.register({ isTest: true }) : AppModule;
+
+  const app = await NestFactory.create<NestFastifyApplication>(rootModule, new FastifyAdapter(), {
     bufferLogs: true,
   });
 
