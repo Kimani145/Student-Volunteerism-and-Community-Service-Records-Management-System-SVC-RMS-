@@ -5,12 +5,14 @@ if (process.env.NODE_ENV === 'production') {
   throw new Error('db:seed is blocked when NODE_ENV=production');
 }
 
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL is required for db:seed');
+const databaseUrl = process.env.DATABASE_URL_MIGRATE ?? process.env.DATABASE_URL;
+
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL_MIGRATE or DATABASE_URL is required for db:seed');
 }
 
 const { Client } = pg;
-const client = new Client({ connectionString: process.env.DATABASE_URL });
+const client = new Client({ connectionString: databaseUrl });
 await client.connect();
 await client.query('BEGIN');
 

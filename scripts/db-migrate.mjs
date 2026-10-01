@@ -3,10 +3,10 @@ import { join } from 'node:path';
 import pg from 'pg';
 
 const { Client } = pg;
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = process.env.DATABASE_URL_MIGRATE ?? process.env.DATABASE_URL;
 
 if (!databaseUrl) {
-  throw new Error('DATABASE_URL is required for db:migrate');
+  throw new Error('DATABASE_URL_MIGRATE or DATABASE_URL is required for db:migrate');
 }
 
 const client = new Client({ connectionString: databaseUrl });

@@ -18,6 +18,11 @@ describeDb('REQ-AUD-01 / REQ-AUD-02 / REQ-AUD-04', () => {
   beforeAll(() => {
     applyTestEnv();
     execFileSync('node', [dbMigrateScript], { cwd: repoRoot, stdio: 'inherit' });
+    execFileSync('bash', [join(repoRoot, 'ops/db-init.sh')], {
+      cwd: repoRoot,
+      env: process.env,
+      stdio: 'inherit',
+    });
   });
 
   it('captures row changes with secret redaction (REQ-AUD-01)', async () => {
