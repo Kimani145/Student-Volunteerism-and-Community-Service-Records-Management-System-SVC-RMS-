@@ -54,6 +54,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
+      - run: pnpm --filter @svc-rms/api exec prisma validate
       - run: pnpm db:migrate
       - run: bash ops/db-init.sh
       - run: pnpm test
