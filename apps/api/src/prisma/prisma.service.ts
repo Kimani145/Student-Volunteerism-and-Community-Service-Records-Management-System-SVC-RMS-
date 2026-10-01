@@ -1,5 +1,5 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { AuditContext, AuditContextStorage } from './audit-context.storage.js';
 
 @Injectable()
@@ -12,7 +12,10 @@ export class PrismaService extends PrismaClient implements OnModuleDestroy {
     await this.$disconnect();
   }
 
-  async withAuditContext<T>(ctx: AuditContext, callback: (client: PrismaClient) => Promise<T>): Promise<T> {
+  async withAuditContext<T>(
+    ctx: AuditContext,
+    callback: (client: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
     return this.auditContextStorage.run(ctx, async () => {
       return this.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT

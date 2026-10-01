@@ -32,7 +32,7 @@ describe('REQ-AUTH-07', () => {
       const methodNames = Object.getOwnPropertyNames(prototype).filter((name) => name !== 'constructor');
 
       for (const methodName of methodNames) {
-        const handler = (prototype as Record<string, unknown>)[methodName];
+        const handler = (prototype as unknown as Record<string, unknown>)[methodName];
         if (typeof handler !== 'function') {
           continue;
         }
