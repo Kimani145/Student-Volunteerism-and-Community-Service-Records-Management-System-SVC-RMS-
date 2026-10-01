@@ -13,6 +13,10 @@ const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
 const dbMigrateScript = join(repoRoot, 'scripts/db-migrate.mjs');
 const auditVerifyScript = join(repoRoot, 'scripts/audit-verify.mjs');
 
+if (process.env.CI && !process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL must be set in CI');
+}
+
 const hasDatabase = Boolean(process.env.DATABASE_URL);
 const describeDb = hasDatabase ? describe : describe.skip;
 

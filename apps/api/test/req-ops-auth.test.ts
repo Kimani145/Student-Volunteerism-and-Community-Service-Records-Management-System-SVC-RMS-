@@ -11,9 +11,60 @@ import { ROLES_KEY } from '../src/auth/roles.decorator.js';
 import { RoutePolicyGuard } from '../src/auth/route-policy.guard.js';
 
 describe('REQ-OPS-03', () => {
-  it('fails env validation on weak JWT secret', () => {
+  it('fails env validation on weak or short secrets', () => {
     applyTestEnv();
     expect(() => parseEnv({ ...process.env, JWT_ACCESS_SECRET: 'too-short' })).toThrow();
+    expect(() => parseEnv({ ...process.env, REFRESH_TOKEN_PEPPER: 'short' })).toThrow();
+    expect(() => parseEnv({ ...process.env, QR_MASTER_SECRET: 'short' })).toThrow();
+  });
+
+  it('fails env validation on missing required secrets', () => {
+    applyTestEnv();
+    const envWithoutJwt = { ...process.env };
+    delete envWithoutJwt.JWT_ACCESS_SECRET;
+    expect(() => parseEnv(envWithoutJwt)).toThrow();
+
+    const envWithoutDb = { ...process.env };
+    delete envWithoutDb.DATABASE_URL;
+    expect(() => parseEnv(envWithoutDb)).toThrow();
+  });
+
+  it('fails env validation and aborts boot on placeholder secrets when NODE_ENV=production', async () => {
+    applyTestEnv();
+    expect(() =>
+      parseEnv({
+        ...process.env,
+        NODE_ENV: 'production',
+        JWT_ACCESS_SECRET: 'replace-with-32-plus-byte-secret-prod',
+      }),
+    ).toThrow(/placeholder/i);
+
+    expect(() =>
+      parseEnv({
+        ...process.env,
+        NODE_ENV: 'production',
+        REFRESH_TOKEN_PEPPER: 'replace-with-secret-pepper-prod',
+      }),
+    ).toThrow(/placeholder/i);
+
+    expect(() =>
+      parseEnv({
+        ...process.env,
+        NODE_ENV: 'production',
+        CERT_SIGNING_PRIVATE_KEY: 'base64-pem-placeholder',
+      }),
+    ).toThrow(/placeholder/i);
+
+    const prevEnv = process.env.NODE_ENV;
+    const prevJwt = process.env.JWT_ACCESS_SECRET;
+    try {
+      process.env.NODE_ENV = 'production';
+      process.env.JWT_ACCESS_SECRET = 'replace-with-32-plus-byte-secret-prod';
+      await expect(createApp()).rejects.toThrow();
+    } finally {
+      process.env.NODE_ENV = prevEnv;
+      process.env.JWT_ACCESS_SECRET = prevJwt;
+    }
   });
 });
 
@@ -136,8 +187,10 @@ describe('REQ-AUTH-07', () => {
 
   it('does not register AuditTestController when NODE_ENV is production', async () => {
     const prevEnv = process.env.NODE_ENV;
+    const prevKey = process.env.CERT_SIGNING_PRIVATE_KEY;
     try {
       process.env.NODE_ENV = 'production';
+      process.env.CERT_SIGNING_PRIVATE_KEY = 'valid-production-ed25519-private-key-123';
       const app = await createApp();
       await app.init();
       const discovery = app.get(DiscoveryService);
@@ -146,12 +199,13 @@ describe('REQ-AUTH-07', () => {
       await app.close();
     } finally {
       process.env.NODE_ENV = prevEnv;
+      process.env.CERT_SIGNING_PRIVATE_KEY = prevKey;
     }
   });
 });
 
 describe('REQ-OPS-01', () => {
-  it('exposes health and readiness endpoints', async () => {
+  it('returns 200 on healthz and readyz when DB is reachable (REQ-OPS-01)', async () => {
     applyTestEnv();
     const app = await createApp();
     await app.init();
@@ -159,10 +213,27 @@ describe('REQ-OPS-01', () => {
 
     const http = app.getHttpServer();
     await request(http).get('/api/v1/healthz').expect(200);
-    await request(http).get('/api/v1/readyz').expect((res) => {
-      expect([200, 503]).toContain(res.status);
-    });
+    const res = await request(http).get('/api/v1/readyz').expect(200);
+    expect(res.body.status).toBe('ready');
 
     await app.close();
+  });
+
+  it('returns 503 on readyz when DB is stopped or connection string is bad (REQ-OPS-01)', async () => {
+    applyTestEnv();
+    const prevUrl = process.env.DATABASE_URL;
+    try {
+      process.env.DATABASE_URL = 'postgresql://svc_app:svc_app_secret@127.0.0.1:5433/nonexistent_db_bad';
+      const badApp = await createApp();
+      await badApp.init();
+      await badApp.getHttpAdapter().getInstance().ready();
+
+      const res = await request(badApp.getHttpServer()).get('/api/v1/readyz');
+      expect(res.status).toBe(503);
+
+      await badApp.close();
+    } finally {
+      process.env.DATABASE_URL = prevUrl;
+    }
   });
 });
