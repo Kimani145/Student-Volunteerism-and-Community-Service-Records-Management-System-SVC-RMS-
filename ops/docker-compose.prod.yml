@@ -7,6 +7,10 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
   api:
-    build: ../apps/api
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
   web:
-    build: ../apps/web
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
