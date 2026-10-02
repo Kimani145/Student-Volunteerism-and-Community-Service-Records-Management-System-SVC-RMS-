@@ -29,7 +29,7 @@ export async function createApp(): Promise<NestFastifyApplication> {
 
 async function bootstrap(): Promise<void> {
   const app = await createApp();
-  await app.listen({ port: 3001, host: '0.0.0.0' });
+  await app.listen({ port: parseInt(process.env.PORT || '3001', 10), host: '0.0.0.0' });
 }
 
 if (process.env.NODE_ENV !== 'test') {

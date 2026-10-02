@@ -43,7 +43,7 @@ export class RoutePolicyGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<RequestLike>();
     if (!request.user) {
-      throw new UnauthorizedException({ code: ErrorCode.UNAUTHORIZED, detail: 'Authentication required' });
+      throw new UnauthorizedException({ code: ErrorCode.UNAUTHENTICATED, detail: 'Authentication required' });
     }
 
     const role = request.user.role;

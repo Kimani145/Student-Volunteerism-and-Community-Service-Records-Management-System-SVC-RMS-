@@ -16,6 +16,8 @@ export class AuditContextStorage {
     return this.als.run(ctx, callback);
   }
 
+  enterWith(ctx: AuditContext): void { this.als.enterWith(ctx); }
+
   get(): AuditContext | undefined {
     return this.als.getStore();
   }

@@ -159,7 +159,7 @@ describe('REQ-AUTH-07', () => {
                 : server.get(route.path);
       const res = await req;
       expect(res.status).toBe(401);
-      expect(res.body.code).toBe(ErrorCode.UNAUTHORIZED);
+      expect(res.body.code).toBe(ErrorCode.UNAUTHENTICATED);
     }
 
     await app.close();

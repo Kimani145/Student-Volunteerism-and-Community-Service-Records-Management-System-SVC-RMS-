@@ -1,3 +1,19 @@
+import { AuthModule } from './auth/auth.module.js';
+import { UsersModule } from './users/users.module.js';
+import { StudentsModule } from './students/students.module.js';
+import { ActivitiesModule } from './activities/activities.module.js';
+import { ParticipationsModule } from './participations/participations.module.js';
+import { AttendanceModule } from './attendance/attendance.module.js';
+import { CertificatesModule } from './certificates/certificates.module.js';
+import { RecordsModule } from './records/records.module.js';
+import { ReportsModule } from './reports/reports.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
+import { AuditModule } from './audit/audit.module.js';
+import { PartnersModule } from './partners/partners.module.js';
+import { PrivacyModule } from './privacy/privacy.module.js';
+import { PublicModule } from './public/public.module.js';
+import { StorageModule } from './storage/storage.module.js';
+import { CsvModule } from './csv/csv.module.js';
 import { DynamicModule, Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, DiscoveryModule } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -11,6 +27,22 @@ import { AuditTestModule } from './audit/audit-test.module.js';
 import { pinoHttpOptions } from './config/logger.js';
 
 const baseImports = [
+  AuthModule,
+  UsersModule,
+  StudentsModule,
+  ActivitiesModule,
+  ParticipationsModule,
+  AttendanceModule,
+  CertificatesModule,
+  RecordsModule,
+  ReportsModule,
+  NotificationsModule,
+  AuditModule,
+  PartnersModule,
+  PrivacyModule,
+  PublicModule,
+  StorageModule,
+  CsvModule,
   DiscoveryModule,
   PrismaModule,
   LoggerModule.forRoot({ pinoHttp: pinoHttpOptions }),
