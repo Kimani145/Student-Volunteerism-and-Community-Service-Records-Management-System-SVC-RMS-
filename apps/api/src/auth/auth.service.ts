@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, UnprocessableEntityException, GoneException, ConflictException, Logger, ForbiddenException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, UnprocessableEntityException, GoneException, ConflictException, Logger, ForbiddenException, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MailService } from '../mail/mail.service.js';
 import { TokenService } from './token.service.js';
@@ -12,10 +12,10 @@ export class AuthService {
   private logger = new Logger(AuthService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly mailService: MailService,
-    private readonly tokenService: TokenService,
-    private readonly audit: AuditEventsService,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(MailService) private readonly mailService: MailService,
+    @Inject(TokenService) private readonly tokenService: TokenService,
+    @Inject(AuditEventsService) private readonly audit: AuditEventsService,
   ) {}
 
   private hashToken(token: string): Buffer {
@@ -168,7 +168,7 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  async refresh(oldRefreshToken: string, userId: string, ip: string, userAgent: string) {
+  async refresh(oldRefreshToken: string, ip: string, userAgent: string) {
     const oldHash = this.hashRefreshToken(oldRefreshToken);
 
     return await this.prisma.$transaction(async (tx: any) => {

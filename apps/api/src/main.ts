@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Logger } from 'nestjs-pino';
 import helmet from '@fastify/helmet';
+import fastifyCookie from '@fastify/cookie';
 import { AppModule } from './app.module.js';
 import { parseEnv } from './config/env.js';
 import { pinoHttpOptions } from './config/logger.js';
@@ -17,6 +18,8 @@ export async function createApp(): Promise<NestFastifyApplication> {
   });
 
   app.useLogger(app.get(Logger));
+
+  await app.register(fastifyCookie);
 
   await app.register(helmet, {
     contentSecurityPolicy: false,

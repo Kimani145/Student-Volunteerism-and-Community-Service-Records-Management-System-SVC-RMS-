@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditContextStorage } from '../prisma/audit-context.storage.js';
 
@@ -7,8 +7,8 @@ export class AuditEventsService {
   private readonly logger = new Logger(AuditEventsService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly auditContextStorage: AuditContextStorage
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(AuditContextStorage) private readonly auditContextStorage: AuditContextStorage
   ) {}
 
   async record(eventType: string, details?: any): Promise<void> {

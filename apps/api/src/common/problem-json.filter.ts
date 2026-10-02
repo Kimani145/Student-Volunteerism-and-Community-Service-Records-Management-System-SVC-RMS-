@@ -1,10 +1,12 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { ErrorCode, ProblemJson, ErrorCodeHttpStatus } from '@svc-rms/shared';
 import { randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 
 @Catch()
 export class ProblemJsonFilter implements ExceptionFilter {
+  private readonly logger = new Logger(ProblemJsonFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
@@ -44,21 +46,59 @@ export class ProblemJsonFilter implements ExceptionFilter {
                   : status === 422
                     ? ErrorCode.VALIDATION_ERROR
                     : ErrorCode.INTERNAL_ERROR;
+
+      if (status === 400 && detail.toLowerCase().includes('uuid')) {
+        status = 422;
+        code = ErrorCode.VALIDATION_ERROR;
+      }
     } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       if (exception.code === 'P2002') {
         status = 409;
         code = ErrorCode.ALREADY_REGISTERED; // generic conflict
         detail = 'Resource already exists';
+      } else if (exception.code === 'P2003') {
+        status = 422;
+        code = ErrorCode.VALIDATION_ERROR;
+        detail = 'Invalid reference: referenced entity does not exist';
+      } else if (exception.code === 'P2023') {
+        status = 422;
+        code = ErrorCode.VALIDATION_ERROR;
+        detail = 'Malformed UUID parameter';
       } else if (exception.code === 'P2025') {
         status = 404;
         code = ErrorCode.NOT_FOUND;
         detail = 'Resource not found';
       }
+    } else if (exception instanceof Prisma.PrismaClientUnknownRequestError) {
+      if (
+        exception.message.includes('invalid input syntax for type uuid') ||
+        exception.message.includes('22P02')
+      ) {
+        status = 422;
+        code = ErrorCode.VALIDATION_ERROR;
+        detail = 'Malformed UUID parameter';
+      }
     } else if (exception instanceof Error) {
-      if (exception.message.includes('CERTIFICATE_LOCKED')) {
+      if (
+        exception.message.includes('invalid input syntax for type uuid') ||
+        exception.message.includes('22P02') ||
+        exception.message.toLowerCase().includes('malformed uuid')
+      ) {
+        status = 422;
+        code = ErrorCode.VALIDATION_ERROR;
+        detail = 'Malformed UUID parameter';
+      } else if (exception.message.includes('CERTIFICATE_LOCKED')) {
         status = 409;
         code = ErrorCode.CERTIFICATE_LOCKED;
         detail = 'CERTIFICATE_LOCKED';
+      }
+    }
+
+    if (status >= 500) {
+      if (exception instanceof Error) {
+        this.logger.error(`5xx Server Error: ${exception.message}`, exception.stack);
+      } else {
+        this.logger.error(`5xx Server Error: ${String(exception)}`);
       }
     }
 

@@ -75,13 +75,13 @@ describe('REQ-AUTH', () => {
     
     expect(loginRes.body.accessToken).toBeDefined();
     const setCookie = loginRes.headers['set-cookie'];
-    const cookie = Array.isArray(setCookie) ? setCookie.find((c: string) => c.startsWith('refresh_token=')) : undefined;((c: string) => c.startsWith('refresh_token='));
+    const cookie = Array.isArray(setCookie) ? setCookie.find((c: string) => c.startsWith('refresh_token=')) : undefined;
     expect(cookie).toBeDefined();
 
     // 2. Refresh
     const refreshRes = await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
-      .set('Cookie', cookie)
+      .set('Cookie', cookie!)
       .expect(200);
     
     expect(refreshRes.body.accessToken).toBeDefined();
@@ -99,5 +99,22 @@ describe('REQ-AUTH', () => {
       .post('/api/v1/auth/login')
       .send({ email: 'login@example.test', password })
       .expect(401); // 401 Account locked
+  });
+
+  it('returns 422 when registering with an unknown schoolId (REQ-AUTH-01)', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({
+        email: 'unknown-school@example.test',
+        password: 'Password123456!',
+        regNumber: 'TUK/999/2026',
+        fullName: 'Unknown School Student',
+        schoolId: 9999,
+        programme: 'BSc Comp Sci',
+        yearOfStudy: 1,
+        noticeVersion: 'v0.1',
+      });
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe('VALIDATION_ERROR');
   });
 });

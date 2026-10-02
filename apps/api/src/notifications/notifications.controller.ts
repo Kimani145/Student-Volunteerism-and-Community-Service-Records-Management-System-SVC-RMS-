@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param } from '@nestjs/common';
+import { Controller, Get, Post, Param, Inject } from '@nestjs/common';
 import { NotificationsService } from './notifications.service.js';
 import { CurrentUser, CurrentUserType } from '../auth/current-user.decorator.js';
 import { UserRole } from '@svc-rms/shared';
@@ -6,7 +6,7 @@ import { Roles } from '../auth/roles.decorator.js';
 
 @Controller('notifications')
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(@Inject(NotificationsService) private readonly notificationsService: NotificationsService) {}
 
   @Get()
   @Roles(UserRole.STUDENT, UserRole.STAFF, UserRole.MANAGEMENT, UserRole.ADMIN)
