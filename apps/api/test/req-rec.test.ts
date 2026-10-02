@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { createTestApp } from './helpers/app.js';
 import { ownerPrisma, clearDatabase } from './helpers/db.js';
-import { getAuthHeaders, createTestUser } from './helpers/index.js';
+import { getAuthHeaders, createTestUser, createActivity, createStudent } from './helpers/index.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import request from 'supertest';
 import * as path from 'path';
@@ -34,18 +34,13 @@ describe('Records, Audit & Privacy Requirements', () => {
     staffHeaders = await getAuthHeaders(app, staffUser.email, 'password123');
 
     const partner = await prisma.community_partners.create({ data: { name: 'P' } });
-    const activity = await prisma.activities.create({
-      data: {
-        title: 'A',
-        description: 'D',
-        status: 'PUBLISHED',
-        capacity: 10,
-        start_date: new Date(),
-        end_date: new Date(),
-        type: 'OTHER',
-        partner_id: partner.id,
-        organizer_id: staffUser.id,
-      }
+    const activity = await createActivity({
+      title: 'A',
+      description: 'D',
+      status: 'PUBLISHED',
+      capacity: 10,
+      partner_id: partner.id,
+      organizer_id: staffUser.id,
     });
     activityId = activity.id;
   });
@@ -176,15 +171,10 @@ describe('Records, Audit & Privacy Requirements', () => {
       const prisma = app.get(PrismaService);
       const school = await prisma.school.findFirst();
       const stUser = await createTestUser(prisma, 'STUDENT');
-      const student = await prisma.student.create({
-        data: {
-          user_id: stUser.id,
-          reg_number: 'ST-001',
-          full_name: 'Student Ex',
-          school_id: school.id,
-          programme: 'CS',
-          year_of_study: 1,
-        }
+      const student = await createStudent(stUser, {
+        school_id: school.id,
+        programme: 'CS',
+        year_of_study: 1,
       });
       
       const res = await request(app.getHttpServer())
