@@ -7,14 +7,14 @@ jobs:
     services:
       postgres:
         image: postgres:16
-        env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: svc_test }
+        env: { POSTGRES_PASSWORD: "postgres", POSTGRES_DB: "svc_test" }
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      DATABASE_URL_MIGRATE: postgresql://postgres:postgres@127.0.0.1:5432/svc_test
-      DATABASE_URL: postgresql://svc_app:svc_app_secret@127.0.0.1:5432/svc_test
-      SVC_APP_PASSWORD: svc_app_secret
+      DATABASE_URL_MIGRATE: "postgresql://postgres:postgres@127.0.0.1:5432/svc_test"
+      DATABASE_URL: "postgresql://svc_app:svc_app_secret@127.0.0.1:5432/svc_test"
+      SVC_APP_PASSWORD: "svc_app_secret"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
