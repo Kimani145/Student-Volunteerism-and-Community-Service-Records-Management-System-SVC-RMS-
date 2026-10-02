@@ -18,7 +18,7 @@ pnpm dev
 
 - `DATABASE_URL_MIGRATE`: Database owner credentials (`postgres`), used for raw migrations (`pnpm db:migrate`), seeding (`pnpm db:seed`), and audit verification (`pnpm audit:verify`).
 - `DATABASE_URL`: Application credentials (`svc_app`), used at runtime by the API and tests with least-privilege access (no UPDATE/DELETE/TRUNCATE on `audit_log`).
-- `ops/db-init.sh`: Sets the `svc_app` password from `SVC_APP_PASSWORD` and ensures role grants are applied.
+- `ops/db-init.sh`: Sets the `svc_app` password from `SVC_APP_PASSWORD` (table and sequence grants are managed by migration `0002_grants`).
 
 ## Validation
 

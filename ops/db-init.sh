@@ -1,51 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SVC_APP_PASSWORD="${SVC_APP_PASSWORD:-svc_app_secret}"
+if [ -z "${SVC_APP_PASSWORD:-}" ]; then
+  echo "Error: SVC_APP_PASSWORD environment variable is required" >&2
+  exit 1
+fi
+
 TARGET_URL="${DATABASE_URL_MIGRATE:-${DATABASE_URL:-}}"
 
+PSQL_ARGS=("-v" "ON_ERROR_STOP=1" "-v" "pw=$SVC_APP_PASSWORD")
 if [ -n "$TARGET_URL" ]; then
-  psql "$TARGET_URL" -v ON_ERROR_STOP=1 <<-EOSQL
-    DO \$\$
-    BEGIN
-      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'svc_app') THEN
-        CREATE ROLE svc_app LOGIN PASSWORD '${SVC_APP_PASSWORD}';
-      ELSE
-        ALTER ROLE svc_app WITH PASSWORD '${SVC_APP_PASSWORD}';
-      END IF;
-    END \$\$;
-EOSQL
-  psql "$TARGET_URL" -v ON_ERROR_STOP=0 <<-EOSQL
-    REVOKE ALL ON ALL TABLES IN SCHEMA public FROM svc_app;
-    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
-      users, sessions, email_tokens, schools, students, consents, activity_types,
-      community_partners, activities, participations, attendances, certificates,
-      record_classes, documents, activity_reports, notifications
-    TO svc_app;
-    GRANT SELECT, INSERT ON TABLE audit_log TO svc_app;
-    GRANT USAGE, SELECT ON SEQUENCE audit_log_id_seq TO svc_app;
-EOSQL
+  PSQL_ARGS+=("$TARGET_URL")
 else
-  DB_NAME="${POSTGRES_DB:-svc_test}"
-  DB_USER="${POSTGRES_USER:-postgres}"
-  psql -v ON_ERROR_STOP=1 --username "$DB_USER" --dbname "$DB_NAME" <<-EOSQL
-    DO \$\$
-    BEGIN
-      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'svc_app') THEN
-        CREATE ROLE svc_app LOGIN PASSWORD '${SVC_APP_PASSWORD}';
-      ELSE
-        ALTER ROLE svc_app WITH PASSWORD '${SVC_APP_PASSWORD}';
-      END IF;
-    END \$\$;
-EOSQL
-  psql -v ON_ERROR_STOP=0 --username "$DB_USER" --dbname "$DB_NAME" <<-EOSQL
-    REVOKE ALL ON ALL TABLES IN SCHEMA public FROM svc_app;
-    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
-      users, sessions, email_tokens, schools, students, consents, activity_types,
-      community_partners, activities, participations, attendances, certificates,
-      record_classes, documents, activity_reports, notifications
-    TO svc_app;
-    GRANT SELECT, INSERT ON TABLE audit_log TO svc_app;
-    GRANT USAGE, SELECT ON SEQUENCE audit_log_id_seq TO svc_app;
-EOSQL
+  PSQL_ARGS+=("--username" "${POSTGRES_USER:-postgres}" "--dbname" "${POSTGRES_DB:-svc_test}")
 fi
+
+psql "${PSQL_ARGS[@]}" <<-EOSQL
+  DO \$\$
+  BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'svc_app') THEN
+      CREATE ROLE svc_app LOGIN;
+    END IF;
+  END \$\$;
+  ALTER ROLE svc_app WITH PASSWORD :'pw';
+EOSQL
