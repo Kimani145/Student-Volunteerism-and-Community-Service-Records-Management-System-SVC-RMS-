@@ -129,7 +129,8 @@ describe('REQ-AUTH', () => {
       .send({ email: 'rotate@example.test', password })
       .expect(200);
 
-    const cookie1 = (loginRes.headers['set-cookie'] as string[]).find((c) => c.startsWith('refresh_token='));
+    const cookies1 = ([] as string[]).concat(loginRes.headers['set-cookie'] || []);
+    const cookie1 = cookies1.find((c) => c.startsWith('refresh_token='));
     expect(cookie1).toBeDefined();
 
     // 2. Rotate refresh token
@@ -138,7 +139,8 @@ describe('REQ-AUTH', () => {
       .set('Cookie', cookie1!)
       .expect(200);
 
-    const cookie2 = (refreshRes.headers['set-cookie'] as string[]).find((c) => c.startsWith('refresh_token='));
+    const cookies2 = ([] as string[]).concat(refreshRes.headers['set-cookie'] || []);
+    const cookie2 = cookies2.find((c) => c.startsWith('refresh_token='));
     expect(cookie2).toBeDefined();
     expect(cookie2).not.toEqual(cookie1);
 

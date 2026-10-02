@@ -1,5 +1,12 @@
-import { Injectable, ConflictException, UnprocessableEntityException, NotFoundException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  Inject,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ErrorCode } from '@svc-rms/shared';
 
 @Injectable()
 export class ParticipationsService {
@@ -7,16 +14,55 @@ export class ParticipationsService {
 
   async registerStudent(activityId: string, studentId: string) {
     return await this.prisma.$transaction(async (tx: any) => {
+      // Find student profile
+      const student = await tx.student.findFirst({
+        where: { OR: [{ id: studentId }, { user_id: studentId }] },
+      });
+      if (!student) {
+        throw new NotFoundException({ code: ErrorCode.NOT_FOUND, detail: 'Student not found' });
+      }
+      const actualStudentId = student.id;
+
       // 1. Double-booking lock
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${studentId}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${actualStudentId}))`;
 
       // 2. Lock the activity to check capacity
-      const actRes = await tx.$queryRaw<any[]>`SELECT status, capacity, start_at, end_at, registration_closes_at FROM activities WHERE id = ${activityId}::uuid FOR UPDATE`;
-      if (actRes.length === 0) throw new NotFoundException('Activity not found');
+      const actRes = await tx.$queryRaw<any[]>`
+        SELECT id, status, capacity, start_at, end_at, registration_closes_at, eligible_years 
+        FROM activities 
+        WHERE id = ${activityId}::uuid 
+        FOR UPDATE
+      `;
+      if (actRes.length === 0) {
+        throw new NotFoundException({ code: ErrorCode.NOT_FOUND, detail: 'Activity not found' });
+      }
       const act = actRes[0];
 
-      if (act.status !== 'PUBLISHED') throw new ConflictException('Activity is not open for registration');
-      if (new Date(act.registration_closes_at) < new Date()) throw new ConflictException('Registration closed');
+      if (act.status !== 'PUBLISHED') {
+        throw new ConflictException({ code: ErrorCode.INVALID_STATE_TRANSITION, detail: 'Activity is not open for registration' });
+      }
+      if (new Date(act.registration_closes_at) < new Date()) {
+        throw new ConflictException({ code: ErrorCode.REGISTRATION_CLOSED, detail: 'Registration closed' });
+      }
+
+      // Check eligible years (REQ-STU-03)
+      if (act.eligible_years && Array.isArray(act.eligible_years) && act.eligible_years.length > 0) {
+        if (!act.eligible_years.includes(student.year_of_study)) {
+          throw new ForbiddenException({ code: ErrorCode.NOT_ELIGIBLE, detail: 'Not eligible for this activity' });
+        }
+      }
+
+      // Check existing registration
+      const existing = await tx.participations.findUnique({
+        where: {
+          student_id_activity_id: { student_id: actualStudentId, activity_id: activityId },
+        },
+      });
+      if (existing) {
+        if (existing.status === 'REGISTERED' || existing.status === 'ATTENDED') {
+          throw new ConflictException({ code: ErrorCode.ALREADY_REGISTERED, detail: 'Already registered' });
+        }
+      }
 
       // 3. Check capacity
       const countRes = await tx.$queryRaw<any[]>`
@@ -27,15 +73,16 @@ export class ParticipationsService {
       `;
       const registered = Number(countRes[0].cnt);
       if (registered >= act.capacity) {
-        throw new ConflictException('Capacity reached');
+        throw new ConflictException({ code: ErrorCode.CAPACITY_FULL, detail: 'Capacity reached' });
       }
 
-      // 4. Check overlap
+      // 4. Check overlap (double-booking)
       const overlapRes = await tx.$queryRaw<any[]>`
         SELECT p.id 
         FROM participations p
         JOIN activities a ON p.activity_id = a.id
-        WHERE p.student_id = ${studentId}::uuid 
+        WHERE p.student_id = ${actualStudentId}::uuid 
+        AND p.activity_id != ${activityId}::uuid
         AND p.status IN ('REGISTERED', 'ATTENDED')
         AND (
           (a.start_at < ${act.end_at} AND a.end_at > ${act.start_at})
@@ -43,51 +90,91 @@ export class ParticipationsService {
         LIMIT 1
       `;
       if (overlapRes.length > 0) {
-        throw new ConflictException('Time overlap with existing registration');
+        throw new ConflictException({ code: ErrorCode.SCHEDULE_CONFLICT, detail: 'Time overlap with existing registration' });
       }
 
-      // 5. Register
+      // 5. Register: if existing is CANCELLED, reactivate row (REG-04)
+      if (existing && existing.status === 'CANCELLED') {
+        return await tx.participations.update({
+          where: { id: existing.id },
+          data: {
+            status: 'REGISTERED',
+            registered_at: new Date(),
+            cancelled_at: null,
+          },
+        });
+      }
+
       return await tx.participations.create({
         data: {
           activity_id: activityId,
-          student_id: studentId,
+          student_id: actualStudentId,
           status: 'REGISTERED',
-        }
+        },
       });
     });
   }
 
   async cancelRegistration(activityId: string, studentId: string) {
-    const p = await this.prisma.participations.findUnique({
-      where: { student_id_activity_id: { student_id: studentId, activity_id: activityId } }
+    const student = await this.prisma.student.findFirst({
+      where: { OR: [{ id: studentId }, { user_id: studentId }] },
     });
-    if (!p) throw new NotFoundException();
-    if (p.status !== 'REGISTERED') throw new ConflictException('Only REGISTERED can be cancelled');
+    if (!student) {
+      throw new NotFoundException({ code: ErrorCode.NOT_FOUND, detail: 'Student not found' });
+    }
+
+    const p = await this.prisma.participations.findUnique({
+      where: { student_id_activity_id: { student_id: student.id, activity_id: activityId } },
+    });
+    if (!p) {
+      throw new NotFoundException({ code: ErrorCode.NOT_FOUND, detail: 'Registration not found' });
+    }
+    if (p.status !== 'REGISTERED') {
+      throw new ConflictException({ code: ErrorCode.INVALID_STATE_TRANSITION, detail: 'Only REGISTERED can be cancelled' });
+    }
     
     const act = await this.prisma.activities.findUnique({ where: { id: activityId } });
     if (!act || act.status === 'COMPLETED' || act.status === 'CANCELLED') {
-      throw new ConflictException('Activity already finished');
+      throw new ConflictException({ code: ErrorCode.INVALID_STATE_TRANSITION, detail: 'Activity already finished or cancelled' });
+    }
+
+    if (new Date() >= act.start_at) {
+      throw new ConflictException({ code: ErrorCode.INVALID_STATE_TRANSITION, detail: 'Cancellation only allowed before activity start time' });
     }
 
     await this.prisma.participations.update({
       where: { id: p.id },
-      data: { status: 'CANCELLED' }
+      data: {
+        status: 'CANCELLED',
+        cancelled_at: new Date(),
+      },
     });
   }
 
   async getStudentHistory(studentId: string) {
+    const student = await this.prisma.student.findFirst({
+      where: { OR: [{ id: studentId }, { user_id: studentId }] },
+    });
+    const actualStudentId = student ? student.id : studentId;
+
     return await this.prisma.participations.findMany({
-      where: { student_id: studentId },
+      where: { student_id: actualStudentId },
       include: { activities: true, certificates: true },
-      orderBy: { activities: { start_at: 'desc' } }
+      orderBy: { activities: { start_at: 'desc' } },
     });
   }
 
   async getStudentSummary(studentId: string) {
+    const student = await this.prisma.student.findFirst({
+      where: { OR: [{ id: studentId }, { user_id: studentId }] },
+    });
+    const actualStudentId = student ? student.id : studentId;
+
     const parts = await this.prisma.participations.findMany({
-      where: { student_id: studentId, status: 'ATTENDED' },
+      where: { student_id: actualStudentId, status: 'ATTENDED' },
     });
     const totalHours = parts.reduce((sum, p) => sum + Number(p.hours_awarded || 0), 0);
     return { totalHours };
   }
 }
+

@@ -1,8 +1,16 @@
-import { Injectable, ConflictException, UnprocessableEntityException, NotFoundException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  ForbiddenException,
+  UnprocessableEntityException,
+  NotFoundException,
+  Inject,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { checkTransition } from './state-machine.js';
 import { AuditEventsService } from '../audit/audit-events.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { AttendanceService } from '../attendance/attendance.service.js';
 import { Prisma } from '@prisma/client';
 import { ErrorCode } from '@svc-rms/shared';
 
@@ -11,7 +19,8 @@ export class ActivitiesService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(AuditEventsService) private readonly audit: AuditEventsService,
-    @Inject(NotificationsService) private readonly notifications: NotificationsService
+    @Inject(NotificationsService) private readonly notifications: NotificationsService,
+    @Inject(AttendanceService) private readonly attendanceService: AttendanceService,
   ) {}
 
   async createActivity(data: any, organizerId: string) {
@@ -52,6 +61,17 @@ export class ActivitiesService {
 
     if (activity.status === 'COMPLETED' || activity.status === 'CANCELLED') {
       throw new ConflictException({ code: ErrorCode.INVALID_STATE_TRANSITION, detail: 'Cannot edit terminal state' });
+    }
+
+    const startAt = data.startAt ? new Date(data.startAt) : activity.start_at;
+    const endAt = data.endAt ? new Date(data.endAt) : activity.end_at;
+    const registrationClosesAt = data.registrationClosesAt ? new Date(data.registrationClosesAt) : activity.registration_closes_at;
+
+    if (endAt <= startAt) {
+      throw new UnprocessableEntityException({ code: ErrorCode.VALIDATION_ERROR, detail: 'End time must be after start time' });
+    }
+    if (registrationClosesAt > startAt) {
+      throw new UnprocessableEntityException({ code: ErrorCode.VALIDATION_ERROR, detail: 'Registration must close before start time' });
     }
     
     const updateData: Prisma.activitiesUncheckedUpdateInput = {};
@@ -118,22 +138,31 @@ export class ActivitiesService {
 
     if (nextStatus === 'PUBLISHED') {
       if (activity.organizer_id === actorId) {
-        throw new ConflictException({ code: ErrorCode.FORBIDDEN, detail: 'Approver cannot be the organizer' });
+        throw new ForbiddenException({ code: ErrorCode.FORBIDDEN, detail: 'Approver cannot be the organizer' });
       }
       const actor = await this.prisma.user.findUnique({ where: { id: actorId } });
       if (!actor?.canApprove) {
-        throw new ConflictException({ code: ErrorCode.FORBIDDEN, detail: 'Actor must be an approver' });
+        throw new ForbiddenException({ code: ErrorCode.FORBIDDEN, detail: 'Actor must be an approver' });
       }
-      await this.prisma.activities.update({
-        where: { id },
-        data: { status: 'PUBLISHED', approved_by: actorId, approved_at: new Date() }
-      });
-    } else {
-      await this.prisma.activities.update({
-        where: { id },
-        data: { status: nextStatus as any }
-      });
     }
+
+    await this.prisma.$transaction(async (tx: any) => {
+      if (nextStatus === 'PUBLISHED') {
+        await tx.activities.update({
+          where: { id },
+          data: { status: 'PUBLISHED', approved_by: actorId, approved_at: new Date() }
+        });
+      } else {
+        await tx.activities.update({
+          where: { id },
+          data: { status: nextStatus as any }
+        });
+      }
+
+      if (nextStatus === 'COMPLETED') {
+        await this.attendanceService.markRemainingAsAbsent(id, tx);
+      }
+    });
 
     if (nextStatus === 'CANCELLED') {
       const parts = await this.prisma.participations.findMany({
@@ -150,18 +179,55 @@ export class ActivitiesService {
     const where: any = {};
     if (isStudent) {
       where.status = { in: ['PUBLISHED', 'IN_PROGRESS'] };
-    } else if (query.status) {
+    } else if (query?.status) {
       where.status = query.status;
     }
+
+    if (query?.typeId) {
+      where.type_id = Number(query.typeId);
+    } else if (query?.type) {
+      where.activity_types = { name: query.type };
+    }
+
+    if (query?.startDate || query?.from) {
+      where.start_at = { ...(where.start_at || {}), gte: new Date(query.startDate || query.from) };
+    }
+    if (query?.endDate || query?.to) {
+      where.end_at = { ...(where.end_at || {}), lte: new Date(query.endDate || query.to) };
+    }
+
+    if (query?.q || query?.search) {
+      const search = query.q || query.search;
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { venue: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const page = Math.max(1, parseInt(query?.page || '1', 10));
+    const limit = Math.min(100, Math.max(1, parseInt(query?.limit || query?.take || '20', 10)));
+    const skip = query?.skip !== undefined ? parseInt(query.skip, 10) : (page - 1) * limit;
+    const take = limit;
+
     const [items, total] = await Promise.all([
-      this.prisma.activities.findMany({ where, skip: 0, take: 20 }),
-      this.prisma.activities.count({ where })
+      this.prisma.activities.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { start_at: 'asc' },
+        include: { activity_types: true, community_partners: true },
+      }),
+      this.prisma.activities.count({ where }),
     ]);
-    return { items, total };
+    return { items, total, page, limit };
   }
 
   async getActivity(id: string, isStudent: boolean) {
-    const activity = await this.prisma.activities.findUnique({ where: { id } });
+    const activity = await this.prisma.activities.findUnique({
+      where: { id },
+      include: { activity_types: true, community_partners: true },
+    });
     if (!activity) throw new NotFoundException({ code: ErrorCode.NOT_FOUND, detail: 'Not found' });
 
     if (isStudent && !['PUBLISHED', 'IN_PROGRESS'].includes(activity.status)) {
@@ -177,3 +243,4 @@ export class ActivitiesService {
     });
   }
 }
+

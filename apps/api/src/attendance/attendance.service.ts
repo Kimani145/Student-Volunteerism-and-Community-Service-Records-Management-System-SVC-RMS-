@@ -1,7 +1,15 @@
-import { Injectable, ConflictException, ForbiddenException, UnprocessableEntityException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  UnprocessableEntityException,
+  Inject,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { generateToken, verifyToken } from './token.util.js';
 import { BulkAttendanceDto } from './dto/attendance.dto.js';
+import { ErrorCode } from '@svc-rms/shared';
 
 @Injectable()
 export class AttendanceService {
@@ -23,7 +31,7 @@ export class AttendanceService {
     });
 
     if (!activity) {
-      throw new ConflictException('Activity not found');
+      throw new NotFoundException({ code: ErrorCode.NOT_FOUND, detail: 'Activity not found' });
     }
 
     if (activity.status !== 'IN_PROGRESS') {
@@ -45,6 +53,13 @@ export class AttendanceService {
       throw new ForbiddenException('Student profile not found');
     }
 
+    const activity = await this.prisma.activities.findUnique({
+      where: { id: activityId }
+    });
+    if (!activity) {
+      throw new NotFoundException({ code: ErrorCode.NOT_FOUND, detail: 'Activity not found' });
+    }
+
     const verify = verifyToken(this.masterSecret, activityId, token, Date.now());
     if (!verify.isValid) {
       await this.prisma.auditLog.create({
@@ -53,18 +68,13 @@ export class AttendanceService {
           eventType: 'ATTENDANCE_CHECKIN_FAILED',
           tableName: 'participations',
           recordId: activityId,
-          newData: { reason: 'TOKEN_INVALID', token },
+          newData: { reason: 'TOKEN_INVALID' },
         }
       });
-      throw new UnprocessableEntityException('TOKEN_INVALID');
+      throw new UnprocessableEntityException({ code: ErrorCode.TOKEN_INVALID, detail: 'TOKEN_INVALID' });
     }
 
-    const activity = await this.prisma.activities.findUnique({
-      where: { id: activityId }
-    });
-    if (!activity) {
-      throw new ConflictException('Activity not found');
-    }
+
     
     const now = new Date();
     const endPlus30 = new Date(activity.end_at.getTime() + 30 * 60000);
@@ -132,37 +142,54 @@ export class AttendanceService {
   }
 
   async bulkUpdateAttendance(activityId: string, data: BulkAttendanceDto, staffUserId: string) {
+    const activity = await this.prisma.activities.findUnique({ where: { id: activityId } });
+    if (!activity) {
+      throw new NotFoundException({ code: ErrorCode.NOT_FOUND, detail: 'Activity not found' });
+    }
+
     return this.prisma.$transaction(async (tx: any) => {
       for (const item of data.participations) {
-        if (item.status === 'ATTENDED' && item.hours_awarded !== undefined) {
-          const activity = await tx.activities.findUnique({ where: { id: activityId } });
-          if (item.hours_awarded !== Number(activity?.service_hours)) {
+        if (item.hours_awarded !== undefined) {
+          if (item.hours_awarded < 0 || item.hours_awarded > Number(activity.service_hours)) {
+            throw new UnprocessableEntityException({
+              code: ErrorCode.VALIDATION_ERROR,
+              detail: `Hours awarded must be between 0 and ${activity.service_hours}`,
+            });
+          }
+          if (item.status === 'ATTENDED' && item.hours_awarded !== Number(activity.service_hours)) {
             if (!item.reason) {
-              throw new UnprocessableEntityException('Hours override requires a reason');
+              throw new UnprocessableEntityException({
+                code: ErrorCode.VALIDATION_ERROR,
+                detail: 'Hours override requires a reason',
+              });
             }
           }
         }
         
+        const participation = await tx.participations.findUnique({ where: { id: item.id } });
+        if (!participation) {
+          throw new NotFoundException({ code: ErrorCode.NOT_FOUND, detail: `Participation not found: ${item.id}` });
+        }
+        if (participation.activity_id !== activityId) {
+          throw new ConflictException({ code: ErrorCode.VALIDATION_ERROR, detail: 'Mismatched activity' });
+        }
+
         const issuedCert = await tx.certificates.findFirst({
           where: {
             participation_id: item.id,
-            status: 'ISSUED'
-          }
+            status: 'ISSUED',
+          },
         });
 
         if (issuedCert) {
-          throw new ConflictException('CERTIFICATE_LOCKED');
+          throw new ConflictException({ code: ErrorCode.CERTIFICATE_LOCKED, detail: 'CERTIFICATE_LOCKED' });
         }
-
-        const participation = await tx.participations.findUnique({ where: { id: item.id } });
-        if (!participation) continue;
-        if (participation.activity_id !== activityId) throw new ConflictException('Mismatched activity');
 
         let hours = participation.hours_awarded;
         if (item.status === 'ATTENDED') {
-           hours = item.hours_awarded !== undefined ? item.hours_awarded : (await tx.activities.findUnique({ where: { id: activityId } }))?.service_hours ?? 0;
+          hours = item.hours_awarded !== undefined ? item.hours_awarded : activity.service_hours;
         } else {
-           hours = 0 as any;
+          hours = 0 as any;
         }
 
         await tx.participations.update({
@@ -170,8 +197,8 @@ export class AttendanceService {
           data: {
             status: item.status,
             hours_awarded: hours,
-            hours_override_reason: item.reason || null
-          }
+            hours_override_reason: item.reason || null,
+          },
         });
 
         await tx.attendances.upsert({
@@ -186,37 +213,25 @@ export class AttendanceService {
             method: 'MANUAL_STAFF',
             recorded_by: staffUserId,
             remarks: item.remarks || null,
-          }
+          },
         });
       }
       return { message: 'Attendance updated' };
     });
   }
 
-  async markRemainingAsAbsent(activityId: string) {
-    // When an activity becomes COMPLETED, remaining REGISTERED participations become ABSENT with 0 hours.
-    return this.prisma.$transaction(async (tx: any) => {
-      const participations = await tx.participations.findMany({
-        where: {
-          activity_id: activityId,
-          status: 'REGISTERED'
-        }
-      });
-
-      for (const p of participations) {
-        await tx.participations.update({
-          where: { id: p.id },
-          data: {
-            status: 'ABSENT',
-            hours_awarded: 0
-          }
-        });
-        
-        // Is an attendance row needed for auto-absent? 
-        // ATT-04 says "participations shall become ABSENT with 0 hours."
-        // We might not need an attendance row since they didn't check in, 
-        // but it could be cleaner to just leave attendances row absent or let the status reflect it.
-      }
+  async markRemainingAsAbsent(activityId: string, tx?: any) {
+    // When an activity becomes COMPLETED, remaining REGISTERED participations become ABSENT with 0 hours (ATT-04).
+    const client = tx || this.prisma;
+    return client.participations.updateMany({
+      where: {
+        activity_id: activityId,
+        status: 'REGISTERED',
+      },
+      data: {
+        status: 'ABSENT',
+        hours_awarded: 0,
+      },
     });
   }
 
