@@ -4,9 +4,14 @@ import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify
 import { Logger } from 'nestjs-pino';
 import helmet from '@fastify/helmet';
 import fastifyCookie from '@fastify/cookie';
+import fastifyMultipart from '@fastify/multipart';
 import { AppModule } from './app.module.js';
 import { parseEnv } from './config/env.js';
 import { pinoHttpOptions } from './config/logger.js';
+
+(BigInt.prototype as any).toJSON = function () {
+  return Number(this);
+};
 
 export async function createApp(): Promise<NestFastifyApplication> {
   parseEnv(process.env);
@@ -20,6 +25,14 @@ export async function createApp(): Promise<NestFastifyApplication> {
   app.useLogger(app.get(Logger));
 
   await app.register(fastifyCookie);
+
+  const maxUploadBytes = parseInt(process.env.MAX_UPLOAD_BYTES || '10485760', 10);
+  await app.register(fastifyMultipart, {
+    limits: {
+      fileSize: maxUploadBytes,
+      files: 1,
+    },
+  });
 
   await app.register(helmet, {
     contentSecurityPolicy: false,

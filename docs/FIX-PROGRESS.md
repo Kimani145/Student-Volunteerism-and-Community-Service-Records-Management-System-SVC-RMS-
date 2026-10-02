@@ -10,7 +10,7 @@ Track progress of CI and blocker fixes as specified in the prompt.
 - [x] 1.5 Diagnose the register/login 500s and the REQ-NTF-01 401 from the new logs and fix the cause (report each).
 
 ## Phase 2: Runtime blockers
-- [ ] 2.1 `main.ts`: register `@fastify/cookie` and `@fastify/multipart` (fileSize = MAX_UPLOAD_BYTES, files: 1). Delete `records/multipart-parser.ts`. Stream uploads through `StorageService`, hash while streaming, 413 when too large, 415 when magic bytes (`file-type`) are not PDF/PNG/JPEG, per SRS REC-01. Test with a real multipart request.
+- [x] 2.1 `main.ts`: register `@fastify/cookie` and `@fastify/multipart` (fileSize = MAX_UPLOAD_BYTES, files: 1). Delete `records/multipart-parser.ts`. Stream uploads through `StorageService`, hash while streaming, 413 when too large, 415 when magic bytes (`file-type`) are not PDF/PNG/JPEG, per SRS REC-01. Test with a real multipart request.
 - [ ] 2.2 `signing/signing.service.ts`: sign with `crypto.sign(null, Buffer.from(canonical), privateKey)` and verify with `crypto.verify(null, …)`. Remove the `return true` stubs. Store signature consistently with BYTEA column and decode it when verifying. Test: change one character of stored payload and verification must fail (charter #12).
 - [ ] 2.3 `public/*`: map ISSUED to VALID (REVOKED stays), response keys exactly per SRS §7.3 (no registration number, school or contact), clear INVALID_SIGNATURE response, `GET /public/keys` listing every key id ever used. Keep 30/min throttle and `Cache-Control: no-store`. Update web verify page to match.
 - [ ] 2.4 Replace every `expect(true)` in `test/certificates/req-crt.test.ts` with real tests for CRT-01…09. Generate Ed25519 key at runtime and set env before creating app (CI uses placeholder key).

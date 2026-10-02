@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Roles } from '../auth/roles.decorator.js';
 import { UserRole } from '@svc-rms/shared';
@@ -20,8 +20,8 @@ const auditFilterSchema = z.object({
 @Controller('audit')
 export class AuditController {
   constructor(
-    private prisma: PrismaService,
-    private auditEvents: AuditEventsService
+    @Inject(PrismaService) private prisma: PrismaService,
+    @Inject(AuditEventsService) private auditEvents: AuditEventsService
   ) {}
 
   @Get()

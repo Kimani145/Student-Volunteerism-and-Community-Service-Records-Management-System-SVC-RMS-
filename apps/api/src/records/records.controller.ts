@@ -1,4 +1,20 @@
-import { Controller, Post, Get, Patch, Put, Param, Query, Body, Req, Res, ConflictException, InternalServerErrorException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Patch,
+  Put,
+  Param,
+  Query,
+  Body,
+  Req,
+  Res,
+  ConflictException,
+  InternalServerErrorException,
+  BadRequestException,
+  UnprocessableEntityException,
+  Inject,
+} from '@nestjs/common';
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { RecordsService } from './records.service.js';
 import { StorageService } from '../storage/storage.service.js';
@@ -9,17 +25,16 @@ import { Roles } from '../auth/roles.decorator.js';
 import { UserRole, ErrorCode } from '@svc-rms/shared';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { AuditEventsService } from '../audit/audit-events.service.js';
-import { fileTypeFromBuffer } from 'file-type';
-import { parseMultipart } from './multipart-parser.js';
 import * as crypto from 'crypto';
+import * as path from 'path';
 
 @Controller()
 export class RecordsController {
   constructor(
-    private recordsService: RecordsService,
-    private storageService: StorageService,
-    private prisma: PrismaService,
-    private auditEvents: AuditEventsService
+    @Inject(RecordsService) private readonly recordsService: RecordsService,
+    @Inject(StorageService) private readonly storageService: StorageService,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(AuditEventsService) private readonly auditEvents: AuditEventsService,
   ) {}
 
   @Get('documents')
@@ -92,7 +107,7 @@ export class RecordsController {
       throw new InternalServerErrorException({ code: ErrorCode.INTEGRITY_FAILURE, detail: 'File integrity check failed' });
     }
 
-    res.header('Content-Disposition', `attachment; filename="${doc.file_name}"`);
+    res.header('Content-Disposition', `attachment; filename="${path.basename(doc.file_name)}"`);
     res.type(doc.mime_type);
     res.send(buffer);
   }
@@ -104,50 +119,70 @@ export class RecordsController {
     @Req() req: FastifyRequest,
     @CurrentUser() user: any
   ) {
-    const { fields, fileBuffer, fileName, mimeType } = await parseMultipart(req);
-    
-    if (!fileBuffer) {
-      throw new ConflictException('No file uploaded');
-    }
-    
-    if (fileBuffer.length > 10 * 1024 * 1024) {
-      throw new ConflictException({ code: ErrorCode.PAYLOAD_TOO_LARGE, detail: 'File too large' });
+    if (!req.isMultipart()) {
+      throw new BadRequestException('Request must be multipart/form-data');
     }
 
-    // magic byte validation
-    const type = await fileTypeFromBuffer(fileBuffer);
-    if (!type || !['pdf', 'png', 'jpg'].includes(type.ext)) {
-      throw new ConflictException({ code: ErrorCode.UNSUPPORTED_MEDIA, detail: 'Unsupported file type' });
+    const maxUploadBytes = parseInt(process.env.MAX_UPLOAD_BYTES || '10485760', 10);
+    const parts = req.parts();
+    const fields: Record<string, string> = {};
+    let fileData: { key: string; size: number; sha256: string; mimeType: string; ext: string; fileName: string } | null = null;
+
+    for await (const part of parts) {
+      if (part.type === 'file') {
+        if (fileData) {
+          part.file.resume();
+          continue;
+        }
+        const stored = await this.storageService.storeStream(part.file, maxUploadBytes);
+        fileData = {
+          ...stored,
+          fileName: part.filename,
+        };
+      } else {
+        fields[part.fieldname] = part.value as string;
+      }
     }
 
-    // store file
-    const storeResult = await this.storageService.storeFile({ buffer: fileBuffer, size: fileBuffer.length });
+    if (!fileData) {
+      throw new BadRequestException({ code: ErrorCode.VALIDATION_ERROR, detail: 'No file uploaded' });
+    }
 
-    // Get record class retention
-    const recordClass = await this.prisma.recordClass.findUnique({ where: { code: fields.class_code } });
-    if (!recordClass) throw new ConflictException('Invalid class_code');
-    
+    const classCode = fields.class_code;
+    if (!classCode) {
+      await this.storageService.removeFile(fileData.key);
+      throw new UnprocessableEntityException({ code: ErrorCode.VALIDATION_ERROR, detail: 'class_code is required' });
+    }
+
+    const recordClass = await this.prisma.recordClass.findUnique({ where: { code: classCode } });
+    if (!recordClass) {
+      await this.storageService.removeFile(fileData.key);
+      throw new UnprocessableEntityException({ code: ErrorCode.VALIDATION_ERROR, detail: 'Invalid class_code' });
+    }
+
     const retentionDate = new Date();
     retentionDate.setFullYear(retentionDate.getFullYear() + recordClass.retentionYears);
 
-    // insert document
     const doc = await this.prisma.documents.create({
       data: {
         activity_id: id,
-        class_code: fields.class_code,
-        title: fields.title || fileName,
-        description: fields.description,
-        file_name: fileName,
-        mime_type: type.mime,
-        size_bytes: storeResult.size,
-        sha256: storeResult.sha256,
-        storage_key: storeResult.key,
+        class_code: classCode,
+        title: fields.title || fileData.fileName,
+        description: fields.description || null,
+        file_name: fileData.fileName,
+        mime_type: fileData.mimeType,
+        size_bytes: fileData.size,
+        sha256: fileData.sha256,
+        storage_key: fileData.key,
         captured_by: user.id,
         retention_expires_at: retentionDate,
-      }
+      },
     });
 
     await this.auditEvents.record('DOCUMENT_UPLOADED', { document_id: doc.id });
-    return doc;
+    return {
+      ...doc,
+      size_bytes: Number(doc.size_bytes),
+    };
   }
 }

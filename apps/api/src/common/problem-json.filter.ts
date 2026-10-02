@@ -41,16 +41,29 @@ export class ProblemJsonFilter implements ExceptionFilter {
               ? ErrorCode.FORBIDDEN
               : status === 404
                 ? ErrorCode.NOT_FOUND
-                : status === 503
-                  ? ErrorCode.SERVICE_UNAVAILABLE
-                  : status === 422
-                    ? ErrorCode.VALIDATION_ERROR
-                    : ErrorCode.INTERNAL_ERROR;
+                : status === 413
+                  ? ErrorCode.PAYLOAD_TOO_LARGE
+                  : status === 415
+                    ? ErrorCode.UNSUPPORTED_MEDIA
+                    : status === 409
+                      ? (payload as any)?.code || ErrorCode.ALREADY_REGISTERED
+                      : status === 503
+                        ? ErrorCode.SERVICE_UNAVAILABLE
+                        : status === 422
+                          ? ErrorCode.VALIDATION_ERROR
+                          : ErrorCode.INTERNAL_ERROR;
 
       if (status === 400 && detail.toLowerCase().includes('uuid')) {
         status = 422;
         code = ErrorCode.VALIDATION_ERROR;
       }
+    } else if (
+      (exception as any)?.statusCode === 413 ||
+      (exception as any)?.code === 'FST_REQ_FILE_TOO_LARGE'
+    ) {
+      status = 413;
+      code = ErrorCode.PAYLOAD_TOO_LARGE;
+      detail = 'File exceeds maximum upload size';
     } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       if (exception.code === 'P2002') {
         status = 409;
@@ -96,8 +109,10 @@ export class ProblemJsonFilter implements ExceptionFilter {
 
     if (status >= 500) {
       if (exception instanceof Error) {
+        console.error(`[ProblemJsonFilter] 5xx: ${exception.message}`, exception.stack);
         this.logger.error(`5xx Server Error: ${exception.message}`, exception.stack);
       } else {
+        console.error(`[ProblemJsonFilter] 5xx: ${String(exception)}`);
         this.logger.error(`5xx Server Error: ${String(exception)}`);
       }
     }

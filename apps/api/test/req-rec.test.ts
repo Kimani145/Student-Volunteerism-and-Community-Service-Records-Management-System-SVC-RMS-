@@ -2,8 +2,11 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { createTestApp } from './helpers/app.js';
 import { ownerPrisma, clearDatabase } from './helpers/db.js';
 import { getAuthHeaders, createTestUser, createActivity, createStudent } from './helpers/index.js';
+import { applyTestEnv } from './test-env.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { StorageService } from '../src/storage/storage.service.js';
 import request from 'supertest';
+import { ErrorCode } from '@svc-rms/shared';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
@@ -18,6 +21,8 @@ describe('Records, Audit & Privacy Requirements', () => {
   let classCode = 'TS-01';
 
   beforeAll(async () => {
+    applyTestEnv();
+    await clearDatabase();
     app = await createTestApp();
     const prisma = app.get(PrismaService);
     
@@ -46,7 +51,7 @@ describe('Records, Audit & Privacy Requirements', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) await app.close();
   });
 
   describe('REC-01, REC-02: Document Upload & Metadata', () => {
@@ -77,6 +82,59 @@ describe('Records, Audit & Privacy Requirements', () => {
       expect(res.body.mime_type).toBe('application/pdf');
       expect(res.body.sha256).toBeDefined();
       expect(res.body.storage_key).toBeDefined();
+    });
+
+    it('REQ-REC-01: Upload with standard supertest attach multipart request', async () => {
+      const fakePdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF');
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/activities/${activityId}/documents`)
+        .set(adminHeaders)
+        .field('class_code', classCode)
+        .field('title', 'Real Multipart Upload')
+        .attach('file', fakePdf, 'real-upload.pdf');
+
+      expect(res.status).toBe(201);
+      expect(res.body.file_name).toBe('real-upload.pdf');
+      expect(res.body.mime_type).toBe('application/pdf');
+      expect(res.body.storage_key).toBeDefined();
+    });
+
+    it('REQ-REC-01: Rejects unsupported file type (.exe renamed .pdf) with 415', async () => {
+      const fakeExe = Buffer.from('MZ\x90\x00\x03\x00\x00\x00\x04\x00');
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/activities/${activityId}/documents`)
+        .set(adminHeaders)
+        .field('class_code', classCode)
+        .attach('file', fakeExe, 'malicious.pdf');
+
+      expect(res.status).toBe(415);
+      expect(res.body.code).toBe(ErrorCode.UNSUPPORTED_MEDIA);
+    });
+
+    it('REQ-REC-01: Rejects oversized file (> 10 MB) with 413', async () => {
+      const bigBuffer = Buffer.alloc(10 * 1024 * 1024 + 10);
+      bigBuffer.write('%PDF-1.4\n', 0);
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/activities/${activityId}/documents`)
+        .set(adminHeaders)
+        .field('class_code', classCode)
+        .attach('file', bigBuffer, 'toolarge.pdf');
+
+      expect(res.status).toBe(413);
+      expect(res.body.code).toBe(ErrorCode.PAYLOAD_TOO_LARGE);
+    });
+
+    it('REQ-REC-01: Neutralizes path-traversal filenames safely', async () => {
+      const fakePdf = Buffer.from('%PDF-1.4\n%%EOF');
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/activities/${activityId}/documents`)
+        .set(adminHeaders)
+        .field('class_code', classCode)
+        .attach('file', fakePdf, '../../../../etc/passwd.pdf');
+
+      expect(res.status).toBe(201);
+      expect(res.body.storage_key).not.toContain('..');
+      expect(res.body.storage_key).not.toContain('/');
     });
 
     it('REQ-REC-02: Edits are audited, sha256 is immutable', async () => {
@@ -113,10 +171,12 @@ describe('Records, Audit & Privacy Requirements', () => {
   describe('REC-04: Document Download', () => {
     it('REQ-REC-04: Downloading a record shall verify its SHA-256', async () => {
       const prisma = app.get(PrismaService);
-      const doc = await prisma.documents.findFirst({ where: { title: 'New Title' } });
+      const doc = (await prisma.documents.findFirst({ where: { title: 'New Title' } })) ||
+                  (await prisma.documents.findFirst({ where: { status: 'ACTIVE' } }));
+      expect(doc).toBeDefined();
       
       const res = await request(app.getHttpServer())
-        .get(`/api/v1/documents/${doc.id}/download`)
+        .get(`/api/v1/documents/${doc!.id}/download`)
         .set(staffHeaders);
         
       expect(res.status).toBe(200);
@@ -125,18 +185,26 @@ describe('Records, Audit & Privacy Requirements', () => {
     
     it('REQ-REC-04: Integrity failure test', async () => {
       const prisma = app.get(PrismaService);
-      const doc = await prisma.documents.findFirst({ where: { title: 'New Title' } });
+      const doc = (await prisma.documents.findFirst({ where: { title: 'New Title' } })) ||
+                  (await prisma.documents.findFirst({ where: { status: 'ACTIVE' } }));
+      expect(doc).toBeDefined();
       
       // Tamper with the file
-      const destPath = path.join(process.cwd(), 'uploads', doc.storage_key);
-      fs.writeFileSync(destPath, 'TAMPERED');
-      
-      const res = await request(app.getHttpServer())
-        .get(`/api/v1/documents/${doc.id}/download`)
-        .set(staffHeaders);
+      const storageService = app.get(StorageService);
+      const destPath = storageService.getFilePath(doc!.storage_key);
+      const original = fs.readFileSync(destPath);
+      try {
+        fs.writeFileSync(destPath, 'TAMPERED');
         
-      expect(res.status).toBe(500);
-      expect(res.body.code).toBe('INTEGRITY_FAILURE');
+        const res = await request(app.getHttpServer())
+          .get(`/api/v1/documents/${doc!.id}/download`)
+          .set(staffHeaders);
+          
+        expect(res.status).toBe(500);
+        expect(res.body.code).toBe('INTEGRITY_FAILURE');
+      } finally {
+        fs.writeFileSync(destPath, original);
+      }
     });
   });
 

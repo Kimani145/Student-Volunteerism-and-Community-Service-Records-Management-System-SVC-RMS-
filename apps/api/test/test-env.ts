@@ -1,4 +1,7 @@
 export function applyTestEnv(): void {
+  (BigInt.prototype as any).toJSON = function () {
+    return Number(this);
+  };
   process.env.NODE_ENV = 'test';
   const isCI = Boolean(process.env.CI && process.env.CI !== 'false');
   if (!isCI) {
