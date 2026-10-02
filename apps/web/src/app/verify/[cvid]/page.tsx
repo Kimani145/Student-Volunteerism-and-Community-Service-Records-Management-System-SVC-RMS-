@@ -1,8 +1,9 @@
 import { notFound } from 'next/navigation';
 
 
-export default async function VerifyCertificatePage({ params }: { params: { cvid: string } }) {
-  const { cvid } = params;
+export default async function VerifyCertificatePage({ params }: { params: Promise<{ cvid: string }> | { cvid: string } }) {
+  const resolvedParams = await Promise.resolve(params);
+  const cvid = resolvedParams?.cvid;
 
   const apiUrl = process.env.API_ORIGIN || 'http://localhost:3001';
   const res = await fetch(`${apiUrl}/api/v1/public/verify/${cvid}`, {

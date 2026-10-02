@@ -4,7 +4,7 @@ import { Public } from './public.decorator.js';
 import { Roles } from './roles.decorator.js';
 import { CurrentUser } from './current-user.decorator.js';
 import { ZodValidationPipe } from '../students/zod-validation.pipe.js';
-import { UserRole } from '@svc-rms/shared';
+import { UserRole, ErrorCode } from '@svc-rms/shared';
 import { z } from 'zod';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyRequest, FastifyReply } from 'fastify';
@@ -89,10 +89,11 @@ export class AuthController {
 
   @Post('refresh')
   @Public()
-  @HttpCode(200)
-  async refresh(@Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
+  async refresh(@Req() req: FastifyRequest, @Res() res: FastifyReply) {
     const oldRefreshToken = (req as any).cookies?.['refresh_token'];
-    if (!oldRefreshToken) throw new UnauthorizedException('Missing refresh token');
+    if (!oldRefreshToken) {
+      throw new UnauthorizedException({ code: ErrorCode.UNAUTHENTICATED, detail: 'Missing refresh token' });
+    }
     
     const result: any = await this.authService.refresh(oldRefreshToken, req.ip || '', req.headers['user-agent'] || '');
     
@@ -104,7 +105,7 @@ export class AuthController {
       maxAge: 8 * 60 * 60 * 1000,
     });
 
-    return { accessToken: result.accessToken };
+    return res.status(200).send({ accessToken: result.accessToken });
   }
 
   @Post('logout')

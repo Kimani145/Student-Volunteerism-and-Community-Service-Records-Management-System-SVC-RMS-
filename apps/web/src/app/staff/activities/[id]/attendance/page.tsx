@@ -97,9 +97,8 @@ export default function CoordinatorAttendancePage() {
     try {
       setCompleting(true);
       setStatusMsg(null);
-      await apiFetch(`/activities/${id}/transition`, {
+      await apiFetch(`/activities/${id}/complete`, {
         method: 'POST',
-        body: JSON.stringify({ status: 'COMPLETED' }),
       });
       setStatusMsg({
         type: 'success',

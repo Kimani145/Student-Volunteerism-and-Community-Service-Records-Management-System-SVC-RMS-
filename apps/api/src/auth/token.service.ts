@@ -13,7 +13,7 @@ export class TokenService {
     this.secret = new TextEncoder().encode(secretKey);
   }
 
-  async signAccess(user: { id: string; role?: string; canApprove?: boolean; studentId?: string }): Promise<string> {
+  async signAccess(user: { id: string; role?: string; canApprove?: boolean; studentId?: string | undefined }): Promise<string> {
     return new SignJWT({
       sub: user.id,
       role: user.role,

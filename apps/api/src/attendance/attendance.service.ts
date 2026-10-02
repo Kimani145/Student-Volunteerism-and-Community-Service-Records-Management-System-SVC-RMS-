@@ -237,6 +237,11 @@ export class AttendanceService {
       where: {
         activity_id: activityId,
         status: 'REGISTERED',
+        certificates: {
+          none: {
+            status: 'ISSUED',
+          },
+        },
       },
       data: {
         status: 'ABSENT',

@@ -29,10 +29,14 @@ export class AuditContextInterceptor implements NestInterceptor {
     const clientIp = request.ip || request.socket?.remoteAddress || '';
     const userId = request.user?.id || '';
 
+    this.auditContextStorage.enterWith({ userId, clientIp, requestId });
+
     return new Observable((subscriber) => {
       return this.auditContextStorage.run({ userId, clientIp, requestId }, () => {
         const sub = next.handle().subscribe(subscriber);
-        return () => sub.unsubscribe();
+        return () => {
+          sub.unsubscribe();
+        };
       });
     });
   }

@@ -15,7 +15,7 @@ export class AuditContextStorage {
   private readonly als = globalAls;
   private readonly txAls = globalTxAls;
 
-  run<T>(ctx: AuditContext, callback: () => Promise<T>): Promise<T> {
+  run<T>(ctx: AuditContext, callback: () => T): T {
     return this.als.run(ctx, callback);
   }
 
@@ -25,7 +25,7 @@ export class AuditContextStorage {
     return this.als.getStore();
   }
 
-  runInTransaction<T>(callback: () => Promise<T>): Promise<T> {
+  runInTransaction<T>(callback: () => T): T {
     return this.txAls.run(true, callback);
   }
 
