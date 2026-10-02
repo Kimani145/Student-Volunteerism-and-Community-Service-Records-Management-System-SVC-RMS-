@@ -7,10 +7,13 @@ export type AuditContext = {
   requestId?: string | null;
 };
 
+const globalAls = new AsyncLocalStorage<AuditContext>();
+const globalTxAls = new AsyncLocalStorage<boolean>();
+
 @Injectable()
 export class AuditContextStorage {
-  private readonly als = new AsyncLocalStorage<AuditContext>();
-  private readonly txAls = new AsyncLocalStorage<boolean>();
+  private readonly als = globalAls;
+  private readonly txAls = globalTxAls;
 
   run<T>(ctx: AuditContext, callback: () => Promise<T>): Promise<T> {
     return this.als.run(ctx, callback);

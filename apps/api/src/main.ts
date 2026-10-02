@@ -8,6 +8,8 @@ import fastifyMultipart from '@fastify/multipart';
 import { AppModule } from './app.module.js';
 import { parseEnv } from './config/env.js';
 import { pinoHttpOptions } from './config/logger.js';
+import { AuditContextStorage } from './prisma/audit-context.storage.js';
+import { AuditContextInterceptor } from './prisma/audit-context.interceptor.js';
 
 (BigInt.prototype as any).toJSON = function () {
   return Number(this);
@@ -40,6 +42,10 @@ export async function createApp(): Promise<NestFastifyApplication> {
   });
 
   app.setGlobalPrefix('api/v1');
+
+  const auditStorage = app.get(AuditContextStorage);
+  app.useGlobalInterceptors(new AuditContextInterceptor(auditStorage));
+
   return app;
 }
 
