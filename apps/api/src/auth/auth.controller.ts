@@ -6,6 +6,7 @@ import { CurrentUser } from './current-user.decorator.js';
 import { ZodValidationPipe } from '../students/zod-validation.pipe.js';
 import { UserRole } from '@svc-rms/shared';
 import { z } from 'zod';
+import { Throttle } from '@nestjs/throttler';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 
 const registerSchema = z.object({

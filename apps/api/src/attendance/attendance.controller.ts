@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Param, Body, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Body, Req, Inject } from '@nestjs/common';
 import { AttendanceService } from './attendance.service.js';
 import { CheckInDto, BulkAttendanceDto } from './dto/attendance.dto.js';
 import { UserRole } from '@svc-rms/shared';
@@ -6,7 +6,7 @@ import { Roles } from '../auth/roles.decorator.js';
 
 @Controller('activities')
 export class AttendanceController {
-  constructor(private readonly attendanceService: AttendanceService) {}
+  constructor(@Inject(AttendanceService) private readonly attendanceService: AttendanceService) {}
 
   @Get(':id/check-in-token')
   @Roles(UserRole.ADMIN, UserRole.STAFF)

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UsePipes } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, UsePipes, Inject } from '@nestjs/common';
 import { ActivitiesService } from './activities.service.js';
 import { Roles } from '../auth/roles.decorator.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -8,7 +8,7 @@ import { createActivitySchema, updateActivitySchema } from './dto.js';
 
 @Controller('activities')
 export class ActivitiesController {
-  constructor(private readonly svc: ActivitiesService) {}
+  constructor(@Inject(ActivitiesService) private readonly svc: ActivitiesService) {}
 
   @Post()
   @Roles(UserRole.STAFF)

@@ -1,12 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CsvService } from '../csv/csv.service.js';
 
 @Injectable()
 export class ReportsService {
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly csvService: CsvService,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(CsvService) private readonly csvService: CsvService,
   ) {}
 
   async getDashboardAggregates(startDate?: Date, endDate?: Date) {
@@ -28,7 +28,7 @@ export class ReportsService {
         COUNT(DISTINCT CASE WHEN p.status = 'ATTENDED' THEN p.student_id END)::int as "attendedCount",
         COALESCE(SUM(p.hours_awarded), 0)::float as "totalHours"
       FROM activities a
-      LEFT JOIN "ActivityType" at ON a.type_id = at.id
+      LEFT JOIN activity_types at ON a.type_id = at.id
       LEFT JOIN participations p ON a.id = p.activity_id
       LEFT JOIN students s ON p.student_id = s.id
       ${dateFilter}

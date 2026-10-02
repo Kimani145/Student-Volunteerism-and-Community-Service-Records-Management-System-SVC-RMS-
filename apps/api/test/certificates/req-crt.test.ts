@@ -116,8 +116,8 @@ describe('REQ-CRT (Certificates Requirements)', () => {
       },
     });
     expect(certsInDb).toHaveLength(2);
-    expect(certsInDb[0].status).toBe('ISSUED');
-    expect(certsInDb[0].signature).toBeDefined();
+    expect(certsInDb[0]!.status).toBe('ISSUED');
+    expect(certsInDb[0]!.signature).toBeDefined();
 
     // Idempotent: issuing again creates 0 new certificates
     const resIssueAgain = await request(app.getHttpServer())
@@ -386,7 +386,7 @@ describe('REQ-CRT (Certificates Requirements)', () => {
       promises.push(request(app.getHttpServer()).get(`/api/v1/public/verify/${cert!.cvid}`));
     }
     const responses = await Promise.all(promises);
-    expect(responses[0].status).toBe(200);
+    expect(responses[0]!.status).toBe(200);
 
     // 31st request should be rate limited (429)
     const res31 = await request(app.getHttpServer()).get(`/api/v1/public/verify/${cert!.cvid}`);

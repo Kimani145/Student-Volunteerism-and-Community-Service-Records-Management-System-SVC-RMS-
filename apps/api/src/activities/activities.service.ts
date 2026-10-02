@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, UnprocessableEntityException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, UnprocessableEntityException, NotFoundException, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { checkTransition } from './state-machine.js';
 import { AuditEventsService } from '../audit/audit-events.service.js';
@@ -9,9 +9,9 @@ import { ErrorCode } from '@svc-rms/shared';
 @Injectable()
 export class ActivitiesService {
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly audit: AuditEventsService,
-    private readonly notifications: NotificationsService
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(AuditEventsService) private readonly audit: AuditEventsService,
+    @Inject(NotificationsService) private readonly notifications: NotificationsService
   ) {}
 
   async createActivity(data: any, organizerId: string) {

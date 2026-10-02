@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Res, UseGuards, Inject } from '@nestjs/common';
 import { ReportsService } from './reports.service.js';
 import { CsvService } from '../csv/csv.service.js';
 import { UserRole } from '@svc-rms/shared';
@@ -10,9 +10,9 @@ import { AuditEventsService } from '../audit/audit-events.service.js';
 @Controller()
 export class ReportsController {
   constructor(
-    private readonly reportsService: ReportsService,
-    private readonly csvService: CsvService,
-    private readonly auditEvents: AuditEventsService,
+    @Inject(ReportsService) private readonly reportsService: ReportsService,
+    @Inject(CsvService) private readonly csvService: CsvService,
+    @Inject(AuditEventsService) private readonly auditEvents: AuditEventsService,
   ) {}
 
   @Get('reports/dashboard')
@@ -41,7 +41,7 @@ export class ReportsController {
     res.header('Content-Type', 'text/csv');
     res.header('Content-Disposition', 'attachment; filename="activities.csv"');
     
-    const headers = ['title', 'type', 'start_at', 'end_at', 'venue', 'status', 'registered', 'attended', 'hours', 'organizer'];
+    const headers = ['title', 'type', 'start_at', 'status', 'registered', 'attended', 'hours', 'organizer'];
     const stream = this.csvService.generateCsvStream(headers, data);
     return res.send(stream);
   }

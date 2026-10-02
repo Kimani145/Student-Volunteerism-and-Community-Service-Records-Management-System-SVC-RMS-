@@ -71,7 +71,7 @@ describe('SigningService (REQ-CRT-03, charter #12)', () => {
     };
     const signature = signingService.sign(payload);
     const tamperedSig = Buffer.from(signature);
-    tamperedSig[0] ^= 0xff; // flip bits of first byte
+    tamperedSig[0] = (tamperedSig[0] ?? 0) ^ 0xff; // flip bits of first byte
 
     expect(signingService.verify(payload, tamperedSig)).toBe(false);
   });

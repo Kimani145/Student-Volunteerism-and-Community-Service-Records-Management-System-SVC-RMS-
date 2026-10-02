@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, ForbiddenException, UnprocessableEntityException } from '@nestjs/common';
+import { Injectable, ConflictException, ForbiddenException, UnprocessableEntityException, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { generateToken, verifyToken } from './token.util.js';
 import { BulkAttendanceDto } from './dto/attendance.dto.js';
@@ -8,9 +8,13 @@ export class AttendanceService {
   private masterSecret: string;
 
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
   ) {
-    this.masterSecret = process.env.QR_MASTER_SECRET || 'abcdefghijklmnopqrstuvwxyz123456';
+    const secret = process.env.QR_MASTER_SECRET;
+    if (!secret) {
+      throw new Error('QR_MASTER_SECRET is required');
+    }
+    this.masterSecret = secret;
   }
 
   async getCheckInToken(activityId: string, user: { id: string, role: string }) {

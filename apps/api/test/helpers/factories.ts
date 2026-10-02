@@ -78,8 +78,16 @@ export async function createStudent(user: any, overrides: any = {}) {
 
 export async function createActivity(overrides: any = {}) {
   const now = Date.now();
-  const start_at = overrides.start_at || new Date(now + 86400000);
-  const end_at = overrides.end_at || new Date(start_at.getTime() + 3600000 * 3);
+  const start_at =
+    overrides.start_at ||
+    (overrides.status === 'IN_PROGRESS'
+      ? new Date(now - 3600000)
+      : new Date(now + 86400000));
+  const end_at =
+    overrides.end_at ||
+    (overrides.status === 'IN_PROGRESS'
+      ? new Date(now + 3600000 * 2)
+      : new Date(start_at.getTime() + 3600000 * 3));
   const registration_closes_at =
     overrides.registration_closes_at || new Date(start_at.getTime() - 3600000);
 

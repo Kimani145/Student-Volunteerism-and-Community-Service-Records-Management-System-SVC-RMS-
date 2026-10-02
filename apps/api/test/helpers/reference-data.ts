@@ -30,9 +30,11 @@ export async function ensureReferenceData(): Promise<{
 }> {
   // Idempotently insert reference data
   await ownerPrisma.$executeRaw`
-    INSERT INTO schools (name)
-    VALUES ('School of Science and Technology')
-    ON CONFLICT (name) DO NOTHING;
+    INSERT INTO schools (id, name)
+    VALUES
+      (1, 'School of Science and Technology'),
+      (2, 'School of Engineering')
+    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
   `;
 
   await ownerPrisma.$executeRaw`

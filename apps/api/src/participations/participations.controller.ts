@@ -1,4 +1,4 @@
-import { Controller, Post, Delete, Param, UseGuards } from '@nestjs/common';
+import { Controller, Post, Delete, Param, UseGuards, Inject } from '@nestjs/common';
 import { ParticipationsService } from './participations.service.js';
 import { Roles } from '../auth/roles.decorator.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -6,7 +6,7 @@ import { UserRole } from '@svc-rms/shared';
 
 @Controller('activities/:id/registrations')
 export class ParticipationsController {
-  constructor(private readonly svc: ParticipationsService) {}
+  constructor(@Inject(ParticipationsService) private readonly svc: ParticipationsService) {}
 
   @Post()
   @Roles(UserRole.STUDENT)

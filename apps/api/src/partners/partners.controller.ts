@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, Inject } from '@nestjs/common';
 import { PartnersService } from './partners.service.js';
 import { Roles } from '../auth/roles.decorator.js';
 import { UserRole } from '@svc-rms/shared';
@@ -6,7 +6,7 @@ import { UserRole } from '@svc-rms/shared';
 @Controller('partners')
 @Roles(UserRole.STAFF, UserRole.ADMIN)
 export class PartnersController {
-  constructor(private readonly svc: PartnersService) {}
+  constructor(@Inject(PartnersService) private readonly svc: PartnersService) {}
 
   @Get()
   async getPartners() {

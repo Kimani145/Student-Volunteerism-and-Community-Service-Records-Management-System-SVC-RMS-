@@ -1,9 +1,9 @@
-import { Injectable, ConflictException, UnprocessableEntityException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, UnprocessableEntityException, NotFoundException, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class ParticipationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async registerStudent(activityId: string, studentId: string) {
     return await this.prisma.$transaction(async (tx: any) => {
