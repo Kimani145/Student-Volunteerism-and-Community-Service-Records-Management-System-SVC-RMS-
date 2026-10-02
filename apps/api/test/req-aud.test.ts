@@ -13,15 +13,15 @@ const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
 const dbMigrateScript = join(repoRoot, 'scripts/db-migrate.mjs');
 const auditVerifyScript = join(repoRoot, 'scripts/audit-verify.mjs');
 
-if (process.env.CI && !process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL must be set in CI');
-}
-
+const isCI = Boolean(process.env.CI && process.env.CI !== 'false');
 const hasDatabase = Boolean(process.env.DATABASE_URL);
-const describeDb = hasDatabase ? describe : describe.skip;
+const describeDb = hasDatabase || isCI ? describe : describe.skip;
 
 describeDb('REQ-AUD-01 / REQ-AUD-02 / REQ-AUD-04', () => {
   beforeAll(() => {
+    if (isCI && !process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL must be set in CI for database tests (skipping is not allowed)');
+    }
     applyTestEnv();
     execFileSync('node', [dbMigrateScript], { cwd: repoRoot, stdio: 'inherit' });
     execFileSync('bash', [join(repoRoot, 'ops/db-init.sh')], {

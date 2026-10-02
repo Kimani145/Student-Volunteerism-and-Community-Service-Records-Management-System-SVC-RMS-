@@ -206,6 +206,10 @@ describe('REQ-AUTH-07', () => {
 
 describe('REQ-OPS-01', () => {
   it('returns 200 on healthz and readyz when DB is reachable (REQ-OPS-01)', async () => {
+    const isCI = Boolean(process.env.CI && process.env.CI !== 'false');
+    if (isCI && !process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL must be set in CI for database tests (skipping is not allowed)');
+    }
     applyTestEnv();
     const app = await createApp();
     await app.init();
