@@ -147,6 +147,43 @@ describeDb('REQ-AUD-01 / REQ-AUD-02 / REQ-AUD-04', () => {
     await app.close();
   });
 
+  it('supports runAsSystem for background jobs and seeds with system audit event (REQ-AUD-02)', async () => {
+    const app = await createApp();
+    await app.init();
+    await app.getHttpAdapter().getInstance().ready();
+    const prisma = app.get(PrismaService);
+
+    const prevEnv = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = 'production';
+      const createdUser = await prisma.runAsSystem('seed_job', async (txPrisma) => {
+        return txPrisma.user.create({
+          data: {
+            email: `system-created-${Date.now()}@example.test`,
+            passwordHash: 'dummy',
+            role: 'STUDENT',
+          },
+        });
+      });
+      expect(createdUser.id).toBeDefined();
+
+      const client = new Client({ connectionString: process.env.DATABASE_URL });
+      await client.connect();
+      const sysEvent = await client.query(
+        `SELECT event_type, source, request_id, actor_user_id
+         FROM audit_log
+         WHERE event_type = 'system.seed_job'
+         ORDER BY id DESC LIMIT 1`,
+      );
+      expect(sysEvent.rows[0]?.source).toBe('APP');
+      expect(sysEvent.rows[0]?.actor_user_id).toBeNull();
+      await client.end();
+    } finally {
+      process.env.NODE_ENV = prevEnv;
+      await app.close();
+    }
+  });
+
   it('enforces append-only audit log and detects tampering (REQ-AUD-04)', async () => {
     const mainDbUrl = process.env.DATABASE_URL_MIGRATE || process.env.DATABASE_URL!;
     const client = new Client({ connectionString: mainDbUrl });

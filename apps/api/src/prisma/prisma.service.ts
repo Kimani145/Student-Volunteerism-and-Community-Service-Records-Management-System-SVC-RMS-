@@ -40,13 +40,25 @@ async function setAuditConfig(tx: Prisma.TransactionClient, ctx: AuditContext | 
 function checkAuditContext(storage: AuditContextStorage): AuditContext | undefined {
   const ctx = storage.get();
   if (!ctx) {
-    const isTest = process.env.NODE_ENV === 'test';
-    const isBypass = Boolean(process.env.ALLOW_EMPTY_AUDIT_CONTEXT || process.env.BYPASS_AUDIT_CONTEXT);
-    if (!isTest && !isBypass) {
+    if (process.env.NODE_ENV !== 'test') {
       throw new Error('Audit context required for write operations');
     }
   }
   return ctx;
+}
+
+function isRawWrite(args: unknown): boolean {
+  let sql = '';
+  if (typeof args === 'string') {
+    sql = args;
+  } else if (Array.isArray(args) && typeof args[0] === 'string') {
+    sql = args[0];
+  } else if (args && typeof args === 'object' && 'strings' in args && Array.isArray((args as { strings: string[] }).strings)) {
+    sql = (args as { strings: string[] }).strings.join(' ');
+  } else if (args && typeof args === 'object' && 'text' in args && typeof (args as { text: string }).text === 'string') {
+    sql = (args as { text: string }).text;
+  }
+  return /^\s*(insert|update|delete|truncate|drop|alter)\b/i.test(sql.trim());
 }
 
 function createAuditExtension(client: PrismaClient, storage: AuditContextStorage) {
@@ -68,21 +80,18 @@ function createAuditExtension(client: PrismaClient, storage: AuditContextStorage
             return query(args);
           }
 
-          const ctx = checkAuditContext(storage);
+          checkAuditContext(storage);
 
           if (storage.isInTransaction()) {
             return query(args);
           }
 
           return client.$transaction(async (tx) => {
-            return storage.runInTransaction(async () => {
-              await setAuditConfig(tx, ctx);
-              const txDelegate = getModelDelegate(tx as unknown as Record<string, unknown>, model);
-              if (txDelegate && typeof txDelegate[operation] === 'function') {
-                return (txDelegate[operation] as (a: unknown) => Promise<unknown>)(args);
-              }
-              return query(args);
-            });
+            const txDelegate = getModelDelegate(tx as unknown as Record<string, unknown>, model);
+            if (txDelegate && typeof txDelegate[operation] === 'function') {
+              return (txDelegate[operation] as (a: unknown) => Promise<unknown>)(args);
+            }
+            return query(args);
           });
         },
       },
@@ -93,16 +102,13 @@ function createAuditExtension(client: PrismaClient, storage: AuditContextStorage
         args: unknown;
         query: (args: unknown) => Promise<unknown>;
       }): Promise<unknown> {
-        const ctx = checkAuditContext(storage);
+        checkAuditContext(storage);
         if (storage.isInTransaction()) {
           return query(args);
         }
         return client.$transaction(async (tx) => {
-          return storage.runInTransaction(async () => {
-            await setAuditConfig(tx, ctx);
-            const rawExecutor = tx as unknown as { $executeRaw: (a: unknown) => Promise<unknown> };
-            return rawExecutor.$executeRaw(args);
-          });
+          const rawExecutor = tx as unknown as { $executeRaw: (a: unknown) => Promise<unknown> };
+          return rawExecutor.$executeRaw(args);
         });
       },
       async $executeRawUnsafe({
@@ -112,22 +118,62 @@ function createAuditExtension(client: PrismaClient, storage: AuditContextStorage
         args: unknown;
         query: (args: unknown) => Promise<unknown>;
       }): Promise<unknown> {
-        const ctx = checkAuditContext(storage);
+        checkAuditContext(storage);
         if (storage.isInTransaction()) {
           return query(args);
         }
         return client.$transaction(async (tx) => {
-          return storage.runInTransaction(async () => {
-            await setAuditConfig(tx, ctx);
+          const rawUnsafeExecutor = tx as unknown as {
+            $executeRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown>;
+          };
+          if (Array.isArray(args)) {
+            return rawUnsafeExecutor.$executeRawUnsafe(args[0] as string, ...args.slice(1));
+          }
+          return rawUnsafeExecutor.$executeRawUnsafe(args as string);
+        });
+      },
+      async $queryRaw({
+        args,
+        query,
+      }: {
+        args: unknown;
+        query: (args: unknown) => Promise<unknown>;
+      }): Promise<unknown> {
+        if (isRawWrite(args)) {
+          checkAuditContext(storage);
+          if (storage.isInTransaction()) {
+            return query(args);
+          }
+          return client.$transaction(async (tx) => {
+            const rawExecutor = tx as unknown as { $queryRaw: (a: unknown) => Promise<unknown> };
+            return rawExecutor.$queryRaw(args);
+          });
+        }
+        return query(args);
+      },
+      async $queryRawUnsafe({
+        args,
+        query,
+      }: {
+        args: unknown;
+        query: (args: unknown) => Promise<unknown>;
+      }): Promise<unknown> {
+        if (isRawWrite(args)) {
+          checkAuditContext(storage);
+          if (storage.isInTransaction()) {
+            return query(args);
+          }
+          return client.$transaction(async (tx) => {
             const rawUnsafeExecutor = tx as unknown as {
-              $executeRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown>;
+              $queryRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown>;
             };
             if (Array.isArray(args)) {
-              return rawUnsafeExecutor.$executeRawUnsafe(args[0] as string, ...args.slice(1));
+              return rawUnsafeExecutor.$queryRawUnsafe(args[0] as string, ...args.slice(1));
             }
-            return rawUnsafeExecutor.$executeRawUnsafe(args as string);
+            return rawUnsafeExecutor.$queryRawUnsafe(args as string);
           });
-        });
+        }
+        return query(args);
       },
     },
   });
@@ -180,5 +226,27 @@ export class PrismaService extends PrismaClient implements OnModuleDestroy {
     callback: (client: PrismaService) => Promise<T>,
   ): Promise<T> {
     return this.auditContextStorage.run(ctx, () => callback(this));
+  }
+
+  async runAsSystem<T>(
+    label: string,
+    fn: (client: PrismaService) => Promise<T>,
+  ): Promise<T> {
+    const requestId = `system:${label}:${Date.now()}`;
+    const ctx: AuditContext = {
+      userId: '',
+      clientIp: '127.0.0.1',
+      requestId,
+    };
+    return this.auditContextStorage.run(ctx, async () => {
+      await (this as unknown as PrismaClient).auditLog.create({
+        data: {
+          source: 'APP',
+          eventType: `system.${label}`,
+          requestId,
+        },
+      });
+      return fn(this);
+    });
   }
 }
