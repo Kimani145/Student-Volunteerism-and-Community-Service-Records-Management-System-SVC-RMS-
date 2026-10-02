@@ -57,6 +57,14 @@ export class ProblemJsonFilter implements ExceptionFilter {
         status = 422;
         code = ErrorCode.VALIDATION_ERROR;
       }
+
+      if (
+        detail.includes('INTEGRITY_FAILURE') ||
+        (exception instanceof Error && exception.message.includes('INTEGRITY_FAILURE')) ||
+        (typeof payload === 'object' && payload !== null && ((payload as any).code === ErrorCode.INTEGRITY_FAILURE || (payload as any).message === 'INTEGRITY_FAILURE'))
+      ) {
+        code = ErrorCode.INTEGRITY_FAILURE;
+      }
     } else if (
       (exception as any)?.statusCode === 413 ||
       (exception as any)?.code === 'FST_REQ_FILE_TOO_LARGE'
@@ -105,6 +113,18 @@ export class ProblemJsonFilter implements ExceptionFilter {
         code = ErrorCode.CERTIFICATE_LOCKED;
         detail = 'CERTIFICATE_LOCKED';
       }
+    }
+
+    if (
+      detail.includes('INTEGRITY_FAILURE') ||
+      (exception instanceof Error && exception.message.includes('INTEGRITY_FAILURE')) ||
+      (exception as any)?.code === ErrorCode.INTEGRITY_FAILURE ||
+      (exception as any)?.response?.code === ErrorCode.INTEGRITY_FAILURE ||
+      (exception as any)?.response?.detail === 'INTEGRITY_FAILURE'
+    ) {
+      code = ErrorCode.INTEGRITY_FAILURE;
+      status = 500;
+      detail = 'INTEGRITY_FAILURE';
     }
 
     if (status >= 500) {

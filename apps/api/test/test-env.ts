@@ -1,3 +1,7 @@
+import { generateKeyPairSync } from 'crypto';
+
+let runtimeTestEdKey: string | null = null;
+
 export function applyTestEnv(): void {
   (BigInt.prototype as any).toJSON = function () {
     return Number(this);
@@ -12,7 +16,11 @@ export function applyTestEnv(): void {
   process.env.JWT_ACCESS_SECRET = '12345678901234567890123456789012';
   process.env.REFRESH_TOKEN_PEPPER = '1234567890123456';
   process.env.QR_MASTER_SECRET = 'abcdefghijklmnopqrstuvwxyz123456';
-  process.env.CERT_SIGNING_PRIVATE_KEY = process.env.CERT_SIGNING_PRIVATE_KEY || 'placeholder-private-key';
+  if (!runtimeTestEdKey) {
+    const { privateKey } = generateKeyPairSync('ed25519');
+    runtimeTestEdKey = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+  }
+  process.env.CERT_SIGNING_PRIVATE_KEY = runtimeTestEdKey;
   process.env.CERT_SIGNING_KEY_ID = 'key-1';
   process.env.PUBLIC_WEB_ORIGIN = 'http://localhost:3000';
   process.env.ALLOWED_STUDENT_EMAIL_DOMAINS = 'example.test';

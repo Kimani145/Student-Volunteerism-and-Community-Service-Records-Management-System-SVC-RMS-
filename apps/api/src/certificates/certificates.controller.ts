@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Body, UseGuards, Req, Res, Headers, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, UseGuards, Req, Res, Headers, NotFoundException, ForbiddenException, Inject } from '@nestjs/common';
 import { CertificatesService } from './certificates.service.js';
 import { IssueCertificatesDto } from './dto/issue-certificates.dto.js';
 import { RevokeCertificateDto } from './dto/revoke-certificate.dto.js';
@@ -8,7 +8,7 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 
 @Controller()
 export class CertificatesController {
-  constructor(private readonly certService: CertificatesService) {}
+  constructor(@Inject(CertificatesService) private readonly certService: CertificatesService) {}
 
   @Roles(UserRole.STAFF, UserRole.ADMIN)
   @Post('activities/:id/certificates')
