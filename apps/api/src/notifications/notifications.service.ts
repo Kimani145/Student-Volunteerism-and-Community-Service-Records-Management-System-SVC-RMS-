@@ -1,25 +1,34 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class NotificationsService {
-  private readonly logger = new Logger(NotificationsService.name);
-
   constructor(private readonly prisma: PrismaService) {}
 
-  async notify(userId: string, type: string, title: string, body?: string, link?: string): Promise<void> {
-    try {
-      await this.prisma.notifications.create({
-        data: {
-          user_id: userId,
-          type,
-          title,
-          ...(body !== undefined && { body }),
-          ...(link !== undefined && { link }),
-        }
-      });
-    } catch (err) {
-      this.logger.error(`Failed to send notification to ${userId}: ${err}`);
-    }
+  async list(userId: string) {
+    return this.prisma.notifications.findMany({
+      where: { user_id: userId },
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
+  async markRead(id: string, userId: string) {
+    return this.prisma.notifications.update({
+      where: { id, user_id: userId },
+      data: { read_at: new Date() },
+    });
+  }
+
+  async notifyStudents(userIds: string[], type: string, title: string, body?: string, link?: string) {
+    if (userIds.length === 0) return;
+    await this.prisma.notifications.createMany({
+      data: userIds.map(uid => ({
+        user_id: uid,
+        type,
+        title,
+        body,
+        link,
+      })),
+    });
   }
 }
