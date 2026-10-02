@@ -21,7 +21,7 @@ export class AuditEventsService {
           requestId: ctx?.requestId ?? '',
           // details can be saved in old_values or new_values or we just map it to details
           // wait, schema.prisma has old_values, new_values. Let's just put it in new_values
-          new_values: details ? details : undefined,
+          newData: details ? details : undefined,
         }
       });
     } catch (err) {

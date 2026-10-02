@@ -28,7 +28,7 @@ export async function createStudent(user: any, overrides: any = {}) {
 }
 
 export async function createActivity(overrides: any = {}) {
-  return ownerPrisma.activity.create({
+  return ownerPrisma.activities.create({
     data: {
       title: 'Test Activity',
       type: 'OTHER',

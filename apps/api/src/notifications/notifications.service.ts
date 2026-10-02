@@ -9,7 +9,7 @@ export class NotificationsService {
 
   async notify(userId: string, type: string, title: string, body?: string, link?: string): Promise<void> {
     try {
-      await this.prisma.notification.create({
+      await this.prisma.notifications.create({
         data: {
           user_id: userId,
           type,
