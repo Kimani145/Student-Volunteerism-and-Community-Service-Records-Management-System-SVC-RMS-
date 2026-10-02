@@ -76,9 +76,9 @@ try {
   for (const user of users) {
     const userId = randomUUID();
     await client.query(
-      `INSERT INTO users (id, email, password_hash, role, can_approve)
-       VALUES ($1, $2, 'seed_password_hash', $3::user_role, $4)
-       ON CONFLICT (email) DO NOTHING`,
+      `INSERT INTO users (id, email, password_hash, role, can_approve, email_verified_at)
+       VALUES ($1, $2, '$argon2id$v=19$m=65536,p=4,t=3$qewnyqqv9ZdcTyVib66wUA$t+9+oxU68IVz+kwTa4Bg318aQuivznJ/3wK6vy8pKw8', $3::user_role, $4, NOW())
+       ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, email_verified_at = EXCLUDED.email_verified_at`,
       [userId, user.email, user.role, user.canApprove],
     );
 

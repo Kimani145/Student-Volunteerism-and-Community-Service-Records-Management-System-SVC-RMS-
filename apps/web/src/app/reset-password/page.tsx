@@ -1,5 +1,5 @@
 'use client';
-import { apiFetch } from '../../lib/api-client.js';
+import { apiFetch } from '@/lib/api-client';
 
 export default function ResetPassword() {
   const submit = async (e: any) => {

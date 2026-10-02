@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { apiFetch, getAccessToken, setAccessToken } from '../api-client.js';
+import { apiFetch, getAccessToken, setAccessToken } from '@/lib/api-client';
 
 interface AuthContextType {
   user: any;

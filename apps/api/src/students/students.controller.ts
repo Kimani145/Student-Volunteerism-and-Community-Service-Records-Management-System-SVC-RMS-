@@ -18,6 +18,12 @@ const updateStudentSchema = z.object({
 export class StudentsController {
   constructor(@Inject(StudentsService) private readonly studentsService: StudentsService) {}
 
+  @Get('me/history')
+  @Roles(UserRole.STUDENT)
+  async getMyHistory(@CurrentUser() user: any) {
+    return this.studentsService.getStudentHistory(user.studentId || user.id);
+  }
+
   @Get('me')
   @Roles(UserRole.STUDENT)
   async getMe(@CurrentUser() user: any) {

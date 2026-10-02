@@ -70,4 +70,22 @@ export class StudentsService {
       total,
     };
   }
+
+  async getStudentHistory(studentId: string) {
+    const student = await this.prisma.student.findFirst({
+      where: { OR: [{ id: studentId }, { user_id: studentId }] },
+    });
+    const actualStudentId = student ? student.id : studentId;
+
+    return await this.prisma.participations.findMany({
+      where: { student_id: actualStudentId },
+      include: {
+        activities: {
+          include: { activity_types: true }
+        },
+        certificates: true,
+      },
+      orderBy: { registered_at: 'desc' },
+    });
+  }
 }

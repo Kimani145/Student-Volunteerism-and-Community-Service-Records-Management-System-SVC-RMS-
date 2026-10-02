@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { strictObject } from './index.js';
+const strictObject = <T extends z.ZodRawShape>(shape: T) => z.object(shape).strict();
 
 export const documentUploadSchema = strictObject({
   class_code: z.string().min(1),

@@ -1,49 +1,124 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { apiFetch } from '@/lib/api-client';
 
-export default function StaffReports() {
-  const [activities, setActivities] = useState<any[]>([]);
+import { useEffect, useState } from 'react';
+import { apiFetch, getAccessToken } from '@/lib/api-client';
+import { RoleGate } from '@/lib/auth';
+
+interface ActivityReportRow {
+  title: string;
+  type: string;
+  start_at: string;
+  status: string;
+  registered: number;
+  attended: number;
+  hours: number;
+}
+
+export default function StaffReportsPage() {
+  const [activities, setActivities] = useState<ActivityReportRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
-    apiFetch<any[]>('/reports/activities').then(setActivities).catch(console.error);
+    loadReport();
   }, []);
 
-  const downloadCsv = () => {
-    // In production we need auth token, but browser will send cookies if using fastify cookie
-    window.location.href = '/api/v1/reports/activities.csv';
+  const loadReport = async () => {
+    try {
+      setLoading(true);
+      const data = await apiFetch<ActivityReportRow[]>('/reports/activities');
+      setActivities(data || []);
+    } catch (err) {
+      console.error('Failed to load activity reports', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadCsv = async () => {
+    try {
+      setExporting(true);
+      const res = await fetch('/api/v1/reports/activities.csv', {
+        headers: {
+          Authorization: `Bearer ${getAccessToken()}`,
+        },
+      });
+      if (!res.ok) throw new Error('Download failed');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `activities_report_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Failed to export CSV report');
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Activity Reports</h1>
-      <button onClick={downloadCsv} className="mb-4 p-2 bg-blue-500 text-white rounded">Download CSV</button>
-      <table className="min-w-full border-collapse">
-        <thead>
-          <tr>
-            <th className="border p-2">Title</th>
-            <th className="border p-2">Type</th>
-            <th className="border p-2">Dates</th>
-            <th className="border p-2">Status</th>
-            <th className="border p-2">Registered</th>
-            <th className="border p-2">Attended</th>
-            <th className="border p-2">Hours</th>
-          </tr>
-        </thead>
-        <tbody>
-          {activities.map((a, i) => (
-            <tr key={i}>
-              <td className="border p-2">{a.title}</td>
-              <td className="border p-2">{a.type}</td>
-              <td className="border p-2">{new Date(a.start_at).toLocaleDateString()}</td>
-              <td className="border p-2">{a.status}</td>
-              <td className="border p-2">{a.registered}</td>
-              <td className="border p-2">{a.attended}</td>
-              <td className="border p-2">{a.hours}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <RoleGate roles={['STAFF', 'MANAGEMENT', 'ADMIN']}>
+      <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Activities Report</h1>
+            <p className="text-slate-500 text-sm mt-1">Aggregated statistics, attendance counts, and accredited hours</p>
+          </div>
+          <button
+            onClick={downloadCsv}
+            disabled={exporting}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg shadow-sm transition disabled:opacity-50 flex items-center gap-2"
+          >
+            <span>📥</span>
+            <span>{exporting ? 'Exporting CSV...' : 'Download CSV Report'}</span>
+          </button>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          {loading ? (
+            <div className="p-8 text-center text-slate-500">Loading reports...</div>
+          ) : activities.length === 0 ? (
+            <div className="p-12 text-center text-slate-500">No activity data recorded yet.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 text-xs uppercase font-semibold">
+                  <tr>
+                    <th className="py-3 px-6">Activity Title</th>
+                    <th className="py-3 px-4">Category</th>
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-center">Registered</th>
+                    <th className="py-3 px-4 text-center">Attended</th>
+                    <th className="py-3 px-6 text-right">Service Hours</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {activities.map((a, i) => (
+                    <tr key={i} className="hover:bg-slate-50/70 transition">
+                      <td className="py-4 px-6 font-semibold text-slate-900">{a.title}</td>
+                      <td className="py-4 px-4 text-xs text-slate-600">{a.type}</td>
+                      <td className="py-4 px-4 text-xs text-slate-600">
+                        {new Date(a.start_at).toLocaleDateString()}
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className="badge badge-info">{a.status}</span>
+                      </td>
+                      <td className="py-4 px-4 text-center font-medium text-slate-700">{a.registered}</td>
+                      <td className="py-4 px-4 text-center font-bold text-emerald-600">{a.attended}</td>
+                      <td className="py-4 px-6 text-right font-extrabold text-indigo-600">{a.hours} hrs</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </RoleGate>
   );
 }
