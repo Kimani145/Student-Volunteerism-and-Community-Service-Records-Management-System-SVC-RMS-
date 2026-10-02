@@ -291,10 +291,10 @@ describe('Attendance (e2e)', () => {
       });
 
       expect(logs.length).toBeGreaterThan(0);
-      const latestLog = logs[0];
-      const logData = latestLog.newData as Record<string, any>;
-      expect(logData.reason).toBe('TOKEN_INVALID');
-      expect(logData.token).toBeUndefined();
+      const latestLog = logs[0]!;
+      const logData = latestLog.newData as Record<string, unknown>;
+      expect(logData['reason']).toBe('TOKEN_INVALID');
+      expect(logData['token']).toBeUndefined();
     });
   });
 });

@@ -73,7 +73,16 @@ export class ProblemJsonFilter implements ExceptionFilter {
       code = ErrorCode.PAYLOAD_TOO_LARGE;
       detail = 'File exceeds maximum upload size';
     } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
-      if (exception.code === 'P2002') {
+      if (
+        exception.code === 'P2023' ||
+        exception.message.includes('invalid input syntax for type uuid') ||
+        exception.message.includes('22P02') ||
+        (exception.meta as any)?.code === '22P02'
+      ) {
+        status = 422;
+        code = ErrorCode.VALIDATION_ERROR;
+        detail = 'Malformed UUID parameter';
+      } else if (exception.code === 'P2002') {
         status = 409;
         code = ErrorCode.ALREADY_REGISTERED; // generic conflict
         detail = 'Resource already exists';
@@ -81,10 +90,6 @@ export class ProblemJsonFilter implements ExceptionFilter {
         status = 422;
         code = ErrorCode.VALIDATION_ERROR;
         detail = 'Invalid reference: referenced entity does not exist';
-      } else if (exception.code === 'P2023') {
-        status = 422;
-        code = ErrorCode.VALIDATION_ERROR;
-        detail = 'Malformed UUID parameter';
       } else if (exception.code === 'P2025') {
         status = 404;
         code = ErrorCode.NOT_FOUND;
@@ -94,6 +99,15 @@ export class ProblemJsonFilter implements ExceptionFilter {
       if (
         exception.message.includes('invalid input syntax for type uuid') ||
         exception.message.includes('22P02')
+      ) {
+        status = 422;
+        code = ErrorCode.VALIDATION_ERROR;
+        detail = 'Malformed UUID parameter';
+      }
+    } else if (exception instanceof Prisma.PrismaClientValidationError) {
+      if (
+        exception.message.toLowerCase().includes('uuid') ||
+        exception.message.toLowerCase().includes('malformed')
       ) {
         status = 422;
         code = ErrorCode.VALIDATION_ERROR;

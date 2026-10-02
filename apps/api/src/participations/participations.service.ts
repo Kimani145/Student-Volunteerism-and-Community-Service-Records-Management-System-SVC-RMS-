@@ -3,16 +3,23 @@ import {
   ConflictException,
   ForbiddenException,
   NotFoundException,
+  UnprocessableEntityException,
   Inject,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ErrorCode } from '@svc-rms/shared';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 @Injectable()
 export class ParticipationsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async registerStudent(activityId: string, studentId: string) {
+    if (!UUID_REGEX.test(activityId)) {
+      throw new UnprocessableEntityException({ code: ErrorCode.VALIDATION_ERROR, detail: 'Malformed UUID parameter' });
+    }
+
     return await this.prisma.$transaction(async (tx: any) => {
       // Find student profile
       const student = await tx.student.findFirst({

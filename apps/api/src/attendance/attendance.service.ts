@@ -11,6 +11,8 @@ import { generateToken, verifyToken } from './token.util.js';
 import { BulkAttendanceDto } from './dto/attendance.dto.js';
 import { ErrorCode } from '@svc-rms/shared';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 @Injectable()
 export class AttendanceService {
   private masterSecret: string;
@@ -26,6 +28,10 @@ export class AttendanceService {
   }
 
   async getCheckInToken(activityId: string, user: { id: string, role: string }) {
+    if (!UUID_REGEX.test(activityId)) {
+      throw new UnprocessableEntityException({ code: ErrorCode.VALIDATION_ERROR, detail: 'Malformed UUID parameter' });
+    }
+
     const activity = await this.prisma.activities.findUnique({
       where: { id: activityId },
     });
@@ -46,6 +52,10 @@ export class AttendanceService {
   }
 
   async selfCheckIn(activityId: string, token: string, studentUserId: string, lat?: number, lng?: number) {
+    if (!UUID_REGEX.test(activityId)) {
+      throw new UnprocessableEntityException({ code: ErrorCode.VALIDATION_ERROR, detail: 'Malformed UUID parameter' });
+    }
+
     const student = await this.prisma.student.findUnique({
       where: { user_id: studentUserId }
     });

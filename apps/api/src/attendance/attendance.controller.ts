@@ -24,7 +24,7 @@ export class AttendanceController {
     @Body() body: CheckInDto,
     @Req() req: { user: { id: string; role: string } }
   ) {
-    return this.attendanceService.selfCheckIn(id, body.token, req.user.id, body.lat, body.lng);
+    return this.attendanceService.selfCheckIn(id, body?.token, req.user?.id, body?.lat, body?.lng);
   }
 
   @Put(':id/attendance')
@@ -34,6 +34,6 @@ export class AttendanceController {
     @Body() body: BulkAttendanceDto,
     @Req() req: { user: { id: string; role: string } }
   ) {
-    return this.attendanceService.bulkUpdateAttendance(id, body, req.user.id);
+    return this.attendanceService.bulkUpdateAttendance(id, body || { participations: [] }, req.user?.id);
   }
 }
