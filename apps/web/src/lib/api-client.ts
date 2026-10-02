@@ -1,5 +1,10 @@
 import { ErrorCode } from '@svc-rms/shared';
-import { getAccessToken } from './auth/auth-utils';
+
+let _accessToken = '';
+export const getAccessToken = () => _accessToken;
+export const setAccessToken = (token: string) => { _accessToken = token; };
+
+let refreshPromise: Promise<void> | null = null;
 
 export class ApiError extends Error {
   constructor(
@@ -23,15 +28,38 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     headers.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(`/api/v1${path}`, {
+  let response = await fetch(`/api/v1${path}`, {
     ...init,
     headers,
-    credentials: 'include', // wait, "always sends credentials" - prompt says "always sends credentials".
+    credentials: 'include',
   });
   
-  // Actually wait, let's fix credentials: 'include'. Wait, the prompt says "always sends credentials"
-  // so credentials: 'include'.
-  
+  if (response.status === 401 && path !== '/auth/refresh' && path !== '/auth/login') {
+    if (!refreshPromise) {
+      refreshPromise = fetch('/api/v1/auth/refresh', { method: 'POST', credentials: 'include' })
+        .then(async (res) => {
+          if (!res.ok) throw new Error('Refresh failed');
+          const data = await res.json();
+          setAccessToken(data.accessToken);
+        })
+        .finally(() => { refreshPromise = null; });
+    }
+    
+    try {
+      await refreshPromise;
+      const newToken = getAccessToken();
+      const retryHeaders = new Headers(headers);
+      retryHeaders.set('Authorization', `Bearer ${newToken}`);
+      response = await fetch(`/api/v1${path}`, {
+        ...init,
+        headers: retryHeaders,
+        credentials: 'include',
+      });
+    } catch {
+      // Refresh failed, let the 401 propagate
+    }
+  }
+
   if (!response.ok) {
     let code = 'UNKNOWN_ERROR';
     let detail = 'An unknown error occurred';
@@ -43,7 +71,6 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     throw new ApiError(response.status, code, detail);
   }
 
-  // If status is 204 No Content, return null
   if (response.status === 204) {
     return null as any;
   }
