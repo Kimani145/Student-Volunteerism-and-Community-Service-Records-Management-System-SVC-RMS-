@@ -13,9 +13,9 @@ export default async function VerifyCertificatePage({ params }: { params: { cvid
     notFound();
   }
 
-  if (res.status === 500) {
+  if (res.status === 400 || res.status === 422 || res.status === 500) {
     const errorData = await res.json().catch(() => ({}));
-    if (errorData.message === 'INVALID_SIGNATURE') {
+    if (errorData.message === 'INVALID_SIGNATURE' || errorData.code === 'INVALID_SIGNATURE') {
       return (
         <main className="p-8 max-w-2xl mx-auto">
           <div className="bg-red-50 border border-red-200 text-red-800 p-6 rounded-lg">
@@ -25,7 +25,9 @@ export default async function VerifyCertificatePage({ params }: { params: { cvid
         </main>
       );
     }
-    return <main className="p-8">Internal Server Error</main>;
+    if (res.status === 500) {
+      return <main className="p-8">Internal Server Error</main>;
+    }
   }
 
   if (!res.ok) {
@@ -49,9 +51,9 @@ export default async function VerifyCertificatePage({ params }: { params: { cvid
           )}
         </div>
 
-        {data.status === 'REVOKED' && data.revocationDate && (
+        {data.status === 'REVOKED' && (data.revocationDate || cert.revokedAt) && (
           <div className="mb-4 text-red-600 bg-red-50 p-3 rounded">
-            Revoked on: {new Date(data.revocationDate).toLocaleString()}
+            Revoked on: {new Date(data.revocationDate || cert.revokedAt).toLocaleString()}
           </div>
         )}
 
