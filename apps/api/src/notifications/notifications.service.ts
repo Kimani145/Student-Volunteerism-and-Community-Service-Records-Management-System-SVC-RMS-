@@ -14,8 +14,8 @@ export class NotificationsService {
           user_id: userId,
           type,
           title,
-          body,
-          link,
+          ...(body !== undefined && { body }),
+          ...(link !== undefined && { link }),
         }
       });
     } catch (err) {
