@@ -69,6 +69,7 @@ export class AuthController {
 
   @Post('login')
   @Public()
+  @Throttle({ default: { limit: 30, ttl: 600000 } })
   @HttpCode(200)
   async login(@Body(new ZodValidationPipe(loginSchema)) body: any, @Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
     const ip = req.ip || '';

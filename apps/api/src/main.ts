@@ -18,7 +18,7 @@ export async function createApp(): Promise<NestFastifyApplication> {
 
   const rootModule = process.env.NODE_ENV === 'test' ? AppModule.register({ isTest: true }) : AppModule;
 
-  const app = await NestFactory.create<NestFastifyApplication>(rootModule, new FastifyAdapter(), {
+  const app = await NestFactory.create<NestFastifyApplication>(rootModule, new FastifyAdapter({ trustProxy: true }), {
     bufferLogs: true,
   });
 

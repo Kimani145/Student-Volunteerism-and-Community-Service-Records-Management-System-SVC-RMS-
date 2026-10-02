@@ -117,4 +117,145 @@ describe('REQ-AUTH', () => {
     expect(res.status).toBe(422);
     expect(res.body.code).toBe('VALIDATION_ERROR');
   });
+
+  it('detects refresh token rotation and reuse (REQ-AUTH-04)', async () => {
+    const password = 'Password123456!';
+    const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+    await createUser({ email: 'rotate@example.test', passwordHash, role: 'STAFF' });
+
+    // 1. Login to get initial refresh token
+    const loginRes = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email: 'rotate@example.test', password })
+      .expect(200);
+
+    const cookie1 = (loginRes.headers['set-cookie'] as string[]).find((c) => c.startsWith('refresh_token='));
+    expect(cookie1).toBeDefined();
+
+    // 2. Rotate refresh token
+    const refreshRes = await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', cookie1!)
+      .expect(200);
+
+    const cookie2 = (refreshRes.headers['set-cookie'] as string[]).find((c) => c.startsWith('refresh_token='));
+    expect(cookie2).toBeDefined();
+    expect(cookie2).not.toEqual(cookie1);
+
+    // 3. Reusing old refresh token must fail (401) and revoke family
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', cookie1!)
+      .expect(401);
+
+    // 4. Now the active new refresh token should also be revoked due to family revocation
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', cookie2!)
+      .expect(401);
+  });
+
+  it('enforces account lockout per-account so shared IP cannot lock other accounts (REQ-AUTH-05)', async () => {
+    const password = 'Password123456!';
+    const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+    await createUser({ email: 'victim@example.test', passwordHash, role: 'STAFF' });
+    await createUser({ email: 'innocent@example.test', passwordHash, role: 'STAFF' });
+
+    // Lock victim with 5 bad attempts from a specific IP
+    for (let i = 0; i < 5; i++) {
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .set('X-Forwarded-For', '198.51.100.42')
+        .send({ email: 'victim@example.test', password: 'wrong-password' })
+        .expect(401);
+    }
+
+    // Victim is locked
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .set('X-Forwarded-For', '198.51.100.42')
+      .send({ email: 'victim@example.test', password })
+      .expect(401);
+
+    // Innocent user from the exact SAME IP can still log in successfully!
+    const innocentRes = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .set('X-Forwarded-For', '198.51.100.42')
+      .send({ email: 'innocent@example.test', password })
+      .expect(200);
+    expect(innocentRes.body.accessToken).toBeDefined();
+  });
+
+  it('handles password reset and rejects token reuse (REQ-AUTH-06)', async () => {
+    const oldPassword = 'OldPassword123456!';
+    const newPassword = 'NewPassword123456!';
+    const passwordHash = await argon2.hash(oldPassword, { type: argon2.argon2id });
+    const user = await createUser({ email: 'reset@example.test', passwordHash, role: 'STAFF' });
+
+    // Request reset
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/password/forgot')
+      .send({ email: 'reset@example.test' })
+      .expect(200);
+
+    // Manually create a reset token in DB to test the reset endpoint
+    const { randomBytes, createHash } = await import('node:crypto');
+    const resetToken = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(resetToken).digest();
+    await ownerPrisma.$executeRaw`
+      INSERT INTO email_tokens (user_id, purpose, token_hash, expires_at)
+      VALUES (${user.id}::uuid, 'RESET_PASSWORD', ${tokenHash}, NOW() + interval '1 hour')
+    `;
+
+    // Reset password
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/password/reset')
+      .send({ token: resetToken, newPassword })
+      .expect(200);
+
+    // Reusing the same reset token returns 410 Gone
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/password/reset')
+      .send({ token: resetToken, newPassword })
+      .expect(410);
+
+    // Old password no longer works
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .set('X-Forwarded-For', '10.10.10.1')
+      .send({ email: 'reset@example.test', password: oldPassword })
+      .expect(401);
+
+    // New password works
+    const loginRes = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .set('X-Forwarded-For', '10.10.10.1')
+      .send({ email: 'reset@example.test', password: newPassword })
+      .expect(200);
+    expect(loginRes.body.accessToken).toBeDefined();
+  });
+
+  it('immediately denies access to deactivated user with live token (REQ-AUTH-10)', async () => {
+    const user = await createUser({ email: 'deactivate@example.test', role: 'STAFF', isActive: true });
+    const { bearer } = await import('../helpers/index.js');
+    const token = await bearer(user as any);
+
+    // Verify token works on authenticated endpoint
+    await request(app.getHttpServer())
+      .get('/api/v1/partners')
+      .set('Authorization', token)
+      .expect(200);
+
+    // Deactivate user in database
+    await ownerPrisma.user.update({
+      where: { id: user.id },
+      data: { isActive: false },
+    });
+
+    // Same live token immediately returns 401
+    await request(app.getHttpServer())
+      .get('/api/v1/partners')
+      .set('Authorization', token)
+      .expect(401);
+  });
 });

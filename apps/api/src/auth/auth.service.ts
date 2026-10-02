@@ -171,25 +171,26 @@ export class AuthService {
   async refresh(oldRefreshToken: string, ip: string, userAgent: string) {
     const oldHash = this.hashRefreshToken(oldRefreshToken);
 
+    const session = await this.prisma.sessions.findUnique({ where: { refresh_hash: oldHash } });
+    if (!session) throw new UnauthorizedException('Invalid refresh token');
+
+    if (session.revoked_at) {
+      await this.prisma.sessions.updateMany({
+        where: { family_id: session.family_id },
+        data: { revoked_at: new Date() },
+      });
+      await this.audit.record('REFRESH_REUSE_DETECTED', { userId: session.user_id });
+      throw new UnauthorizedException('Session revoked');
+    }
+
+    if (session.expires_at < new Date() || session.last_used_at.getTime() < Date.now() - 15 * 60 * 1000) {
+      throw new UnauthorizedException('Session expired');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: session.user_id }, include: { student: true } });
+    if (!user || !user.isActive) throw new UnauthorizedException('User deactivated');
+
     return await this.prisma.$transaction(async (tx: any) => {
-      const session = await tx.sessions.findUnique({ where: { refresh_hash: oldHash } });
-      if (!session) throw new UnauthorizedException('Invalid refresh token');
-
-      if (session.revoked_at) {
-        await tx.sessions.updateMany({
-          where: { family_id: session.family_id },
-          data: { revoked_at: new Date() },
-        });
-        await this.audit.record('REFRESH_REUSE_DETECTED', { userId: session.user_id });
-        throw new UnauthorizedException('Session revoked');
-      }
-
-      if (session.expires_at < new Date() || session.last_used_at.getTime() < Date.now() - 15 * 60 * 1000) {
-        throw new UnauthorizedException('Session expired');
-      }
-
-      const user = await tx.user.findUnique({ where: { id: session.user_id }, include: { student: true } });
-      if (!user || !user.isActive) throw new UnauthorizedException('User deactivated');
 
       // Revoke old
       await tx.sessions.update({
@@ -253,13 +254,16 @@ export class AuthService {
 
   async resetPassword(token: string, newPassword: string) {
     const tokenHash = this.hashToken(token);
+    const passwordHash = await argon2.hash(newPassword, { type: argon2.argon2id });
+
+    let userId = '';
     await this.prisma.$transaction(async (tx: any) => {
       const emailToken = await tx.email_tokens.findUnique({ where: { token_hash: tokenHash } });
       if (!emailToken || emailToken.purpose !== 'RESET_PASSWORD') throw new GoneException('Token invalid or expired');
       if (emailToken.used_at) throw new GoneException('Token already used');
       if (emailToken.expires_at < new Date()) throw new GoneException('Token expired');
 
-      const passwordHash = await argon2.hash(newPassword, { type: argon2.argon2id });
+      userId = emailToken.user_id;
 
       await tx.email_tokens.update({
         where: { id: emailToken.id },
@@ -275,9 +279,11 @@ export class AuthService {
         where: { user_id: emailToken.user_id, revoked_at: null },
         data: { revoked_at: new Date() },
       });
-
-      await this.audit.record('PASSWORD_RESET', { userId: emailToken.user_id });
     });
+
+    if (userId) {
+      await this.audit.record('PASSWORD_RESET', { userId });
+    }
   }
 
   async changePassword(userId: string, current: string, newPass: string) {

@@ -9,7 +9,7 @@ export async function createTestApp(): Promise<NestFastifyApplication> {
     imports: [AppModule.register({ isTest: true })],
   }).compile();
 
-  const app = moduleFixture.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
+  const app = moduleFixture.createNestApplication<NestFastifyApplication>(new FastifyAdapter({ trustProxy: true }));
   await app.register(fastifyCookie);
   const maxUploadBytes = parseInt(process.env.MAX_UPLOAD_BYTES || '10485760', 10);
   await app.register(fastifyMultipart, {
