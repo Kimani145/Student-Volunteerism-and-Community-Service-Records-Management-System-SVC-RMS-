@@ -244,3 +244,6 @@ Commit small and `git push origin feat/<area>` after every requirement group (ne
 
 ## Stop Rule
 When you have used about 60% of your available time or quota, stop adding Should/Could items and finish and push what is green. Priority: Must first, then Should.
+
+## Codebase map
+See `docs/AGENT-README.md` for the repository map, architecture patterns, request lifecycle, database conventions, recipes, and gotchas.
