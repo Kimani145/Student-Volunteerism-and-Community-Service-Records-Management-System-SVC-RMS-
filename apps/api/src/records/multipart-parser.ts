@@ -43,9 +43,9 @@ export async function parseMultipart(req: FastifyRequest) {
             if (name) {
               const filenameMatch = headerString.match(/filename="([^"]+)"/);
               if (filenameMatch) {
-                fileName = filenameMatch[1];
+                fileName = filenameMatch[1] ?? '';
                 const contentMatch = headerString.match(/Content-Type:\s*([^\r\n]+)/i);
-                mimeType = contentMatch ? contentMatch[1] : 'application/octet-stream';
+                mimeType = (contentMatch && contentMatch[1]) ? contentMatch[1] : 'application/octet-stream';
                 fileBuffer = data;
               } else {
                 fields[name] = data.toString('utf-8');

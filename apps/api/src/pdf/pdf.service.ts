@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as PDFDocument from 'pdfkit';
+
+import PDFDocument from 'pdfkit';
 import * as QRCode from 'qrcode';
-import { Env } from '../config/env.js';
 
 export interface CertificateData {
   cvid: string;
@@ -16,7 +15,7 @@ export interface CertificateData {
 
 @Injectable()
 export class PdfService {
-  constructor(private configService: ConfigService<Env, true>) {}
+  constructor() {}
 
   public async generateCertificate(data: CertificateData): Promise<Buffer> {
     return new Promise((resolve, reject) => {
@@ -32,7 +31,7 @@ export class PdfService {
         });
 
         const chunks: Buffer[] = [];
-        doc.on('data', (chunk) => chunks.push(chunk));
+        doc.on('data', (chunk: Buffer) => chunks.push(chunk));
         doc.on('end', () => resolve(Buffer.concat(chunks)));
         doc.on('error', reject);
 
@@ -60,11 +59,11 @@ export class PdfService {
         // Signatories
         doc.moveDown(2);
         const ySignatures = doc.y;
-        doc.fontSize(14).text(this.configService.get('SIGNATORY_1_NAME'), 100, ySignatures);
-        doc.fontSize(12).text(this.configService.get('SIGNATORY_1_TITLE'), 100, ySignatures + 15);
+        doc.fontSize(14).text(process.env.SIGNATORY_1_NAME || 'Signatory 1', 100, ySignatures);
+        doc.fontSize(12).text(process.env.SIGNATORY_1_TITLE || 'Director', 100, ySignatures + 15);
         
-        doc.fontSize(14).text(this.configService.get('SIGNATORY_2_NAME'), 500, ySignatures);
-        doc.fontSize(12).text(this.configService.get('SIGNATORY_2_TITLE'), 500, ySignatures + 15);
+        doc.fontSize(14).text(process.env.SIGNATORY_2_NAME || 'Signatory 2', 500, ySignatures);
+        doc.fontSize(12).text(process.env.SIGNATORY_2_TITLE || 'Dean', 500, ySignatures + 15);
 
         // CVID
         doc.fontSize(10).text(`CVID: ${data.cvid}`, 50, doc.page.height - 70);
@@ -72,7 +71,7 @@ export class PdfService {
         doc.text(`Issued at: ${data.issuedAt}`, 50, doc.page.height - 40);
 
         // QR Code as vectors
-        const verifyUrl = `${this.configService.get('PUBLIC_WEB_ORIGIN')}/verify/${data.cvid}`;
+        const verifyUrl = `${process.env.PUBLIC_WEB_ORIGIN || 'http://localhost:3000'}/verify/${data.cvid}`;
         const qrData = QRCode.create(verifyUrl, { errorCorrectionLevel: 'M' });
         
         const qrSize = 100;

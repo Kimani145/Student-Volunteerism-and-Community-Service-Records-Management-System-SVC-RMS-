@@ -19,6 +19,10 @@ export class NotificationsService {
     });
   }
 
+  async notify(userId: string, title: string, body?: string, link?: string) {
+    return this.notifyStudents([userId], 'SYSTEM', title, body, link);
+  }
+
   async notifyStudents(userIds: string[], type: string, title: string, body?: string, link?: string) {
     if (userIds.length === 0) return;
     await this.prisma.notifications.createMany({
@@ -26,8 +30,8 @@ export class NotificationsService {
         user_id: uid,
         type,
         title,
-        body,
-        link,
+        body: body ?? null,
+        link: link ?? null,
       })),
     });
   }

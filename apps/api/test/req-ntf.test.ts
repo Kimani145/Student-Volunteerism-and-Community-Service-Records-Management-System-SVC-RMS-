@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import request from 'supertest';
 import { createTestApp } from './helpers/app.js';
 import { applyTestEnv } from './test-env.js';
-import { bearer, createUser, createStudent, createActivity } from './helpers/auth.js';
+import { bearer, createUser, createStudent, createActivity } from './helpers/index.js';
 import { ownerPrisma } from './helpers/db.js';
 import { UserRole } from '@svc-rms/shared';
 

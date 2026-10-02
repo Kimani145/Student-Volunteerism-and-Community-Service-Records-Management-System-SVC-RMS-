@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Body, UseGuards, Req, Res, Headers } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, UseGuards, Req, Res, Headers, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { CertificatesService } from './certificates.service.js';
 import { IssueCertificatesDto } from './dto/issue-certificates.dto.js';
 import { RevokeCertificateDto } from './dto/revoke-certificate.dto.js';
@@ -31,7 +31,7 @@ export class CertificatesController {
     const cert = await this.certService.getCertificate(id);
     if (user.role === 'STUDENT' && cert.participations.students.user_id !== user.id) {
       // Return 404 to obscure existence, per CRT-06 "Cross-student download -> 404"
-      throw new require('@nestjs/common').NotFoundException('Certificate not found');
+      throw new NotFoundException('Certificate not found');
     }
     return cert;
   }
@@ -52,7 +52,7 @@ export class CertificatesController {
   async revoke(@Param('id') id: string, @Body() dto: RevokeCertificateDto, @Req() req: FastifyRequest) {
     const user = (req as any).user;
     if (user.role === 'STAFF' && !user.canApprove) {
-      throw new require('@nestjs/common').ForbiddenException('Must be an approver to revoke');
+      throw new ForbiddenException('Must be an approver to revoke');
     }
     return this.certService.revoke(id, user.id, dto.reason);
   }
@@ -62,7 +62,7 @@ export class CertificatesController {
   async reissue(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = (req as any).user;
     if (user.role === 'STAFF' && !user.canApprove) {
-      throw new require('@nestjs/common').ForbiddenException('Must be an approver to reissue');
+      throw new ForbiddenException('Must be an approver to reissue');
     }
     return this.certService.reissue(id, user.id);
   }

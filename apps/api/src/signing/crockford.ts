@@ -9,7 +9,7 @@ export function generateCvid(): string {
   // 10 chars = 50 bits. We can generate 10 bytes and take modulo 32 for each.
   const bytes = randomBytes(10);
   for (let i = 0; i < 10; i++) {
-    chars += ALPHABET[bytes[i] % 32];
+    chars += ALPHABET[(bytes[i] ?? 0) % 32];
   }
   return `TUK-VOL-${year}-${chars}`;
 }

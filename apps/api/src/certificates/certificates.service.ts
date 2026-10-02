@@ -2,8 +2,7 @@ import { Injectable, ConflictException, NotFoundException, InternalServerErrorEx
 import { PrismaService } from '../prisma/prisma.service.js';
 import { PdfService } from '../pdf/pdf.service.js';
 import { SigningService } from '../signing/signing.service.js';
-import { ConfigService } from '@nestjs/config';
-import { Env } from '../config/env.js';
+
 import { generateCvid } from '../signing/crockford.js';
 import { AuditEventsService } from '../audit/audit-events.service.js';
 import * as fs from 'fs/promises';
@@ -18,12 +17,11 @@ export class CertificatesService {
     private readonly prisma: PrismaService,
     private readonly pdfService: PdfService,
     private readonly signingService: SigningService,
-    private readonly configService: ConfigService<Env, true>,
     private readonly auditEvents: AuditEventsService,
   ) {}
 
   public async issueCertificates(activityId: string, issuerId: string, participationIds?: string[]) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const activity = await tx.activities.findUnique({
         where: { id: activityId },
       });
@@ -77,7 +75,7 @@ export class CertificatesService {
           serviceDate: activity.start_at.toISOString().split('T')[0],
           hours: Number(p.hours_awarded),
           issuedAt: issuedAt.toISOString(),
-          issuer: this.configService.get('ISSUER_NAME'),
+          issuer: process.env.ISSUER_NAME || 'TUK',
         };
 
         const signature = this.signingService.signCanonical(payload);
@@ -149,7 +147,7 @@ export class CertificatesService {
     }
 
     if (cert.pdf_storage_key && cert.pdf_sha256) {
-      const storageRoot = this.configService.get('STORAGE_ROOT');
+      const storageRoot = process.env.STORAGE_ROOT || '/tmp/svc-storage';
       const p = path.join(storageRoot, cert.pdf_storage_key);
       try {
         const file = await fs.readFile(p);
@@ -176,18 +174,18 @@ export class CertificatesService {
     const s = p.students;
     
     const buffer = await this.pdfService.generateCertificate({
-      cvid: cert.cvid,
+      cvid: cert.cvid ?? "",
       studentName: s.full_name,
       activityTitle: a.title,
-      serviceDate: a.start_at.toISOString().split('T')[0],
+      serviceDate: a.start_at.toISOString().split('T')[0] ?? '',
       hours: Number(p.hours_awarded),
-      issuer: this.configService.get('ISSUER_NAME'),
+      issuer: process.env.ISSUER_NAME || 'TUK',
       issuedAt: cert.issued_at.toISOString(),
     });
 
     const sha256 = createHash('sha256').update(buffer).digest('hex');
     const storageKey = `certs/${cert.cvid}.pdf`;
-    const storagePath = path.join(this.configService.get('STORAGE_ROOT'), storageKey);
+    const storagePath = path.join(process.env.STORAGE_ROOT || '/tmp/svc-storage', storageKey);
     await fs.mkdir(path.dirname(storagePath), { recursive: true });
     await fs.writeFile(storagePath, buffer);
 
@@ -215,7 +213,7 @@ export class CertificatesService {
   }
 
   public async reissue(id: string, issuerId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const old = await tx.certificates.findUnique({
         where: { id },
         include: { participations: { include: { activities: true, students: true } } }
@@ -245,7 +243,7 @@ export class CertificatesService {
         serviceDate: a.start_at.toISOString().split('T')[0],
         hours: Number(p.hours_awarded),
         issuedAt: issuedAt.toISOString(),
-        issuer: this.configService.get('ISSUER_NAME'),
+        issuer: process.env.ISSUER_NAME || 'TUK',
       };
 
       const signature = this.signingService.signCanonical(payload);

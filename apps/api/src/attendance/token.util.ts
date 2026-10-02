@@ -8,15 +8,15 @@ export function encodeBase32(buffer: Buffer): string {
   let output = '';
 
   for (let i = 0; i < buffer.length; i++) {
-    value = (value << 8) | buffer[i];
+    value = (value << 8) | (buffer[i] ?? 0);
     bits += 8;
     while (bits >= 5) {
-      output += CROCKFORD_ALPHABET[(value >>> (bits - 5)) & 31];
+      output += CROCKFORD_ALPHABET[(value >>> (bits - 5)) & 31] ?? '';
       bits -= 5;
     }
   }
   if (bits > 0) {
-    output += CROCKFORD_ALPHABET[(value << (5 - bits)) & 31];
+    output += CROCKFORD_ALPHABET[(value << (5 - bits)) & 31] ?? '';
   }
   return output;
 }
@@ -75,11 +75,15 @@ export function verifyToken(
 
   try {
     isCurrent = timingSafeEqual(tokenBuffer, currentBuffer);
-  } catch {}
+  } catch {
+    isCurrent = false;
+  }
 
   try {
     isPrev = timingSafeEqual(tokenBuffer, prevBuffer);
-  } catch {}
+  } catch {
+    isPrev = false;
+  }
 
   if (isCurrent || isPrev) {
     return { isValid: true };

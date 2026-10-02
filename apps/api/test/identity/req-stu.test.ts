@@ -19,7 +19,7 @@ describe('REQ-STU-01 / REQ-STU-02', () => {
   it('allows a student to view and update their profile, but rejects unknown keys (REQ-STU-01)', async () => {
     const user = await createUser({ role: 'STUDENT' });
     await createStudent(user, { school_id: 1, year_of_study: 2 });
-    const token = await bearer(user);
+    const token = await bearer(user as any);
 
     // View
     const getRes = await request(app.getHttpServer())
@@ -61,10 +61,10 @@ describe('REQ-STU-01 / REQ-STU-02', () => {
     await createStudent(studentUser, { reg_number: 'FIND-ME-123', full_name: 'Alice Findme' });
 
     const staffUser = await createUser({ role: 'STAFF' });
-    const staffToken = await bearer(staffUser);
+    const staffToken = await bearer(staffUser as any);
 
     const mgtUser = await createUser({ role: 'MANAGEMENT' });
-    const mgtToken = await bearer(mgtUser);
+    const mgtToken = await bearer(mgtUser as any);
 
     // STAFF search
     const searchRes = await request(app.getHttpServer())

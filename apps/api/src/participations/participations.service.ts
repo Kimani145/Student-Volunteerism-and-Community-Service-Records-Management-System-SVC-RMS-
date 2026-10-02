@@ -6,7 +6,7 @@ export class ParticipationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async registerStudent(activityId: string, studentId: string) {
-    return await this.prisma.$transaction(async (tx) => {
+    return await this.prisma.$transaction(async (tx: any) => {
       // 1. Double-booking lock
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${studentId}))`;
 
@@ -59,7 +59,7 @@ export class ParticipationsService {
 
   async cancelRegistration(activityId: string, studentId: string) {
     const p = await this.prisma.participations.findUnique({
-      where: { activity_id_student_id: { activity_id: activityId, student_id: studentId } }
+      where: { student_id_activity_id: { student_id: studentId, activity_id: activityId } }
     });
     if (!p) throw new NotFoundException();
     if (p.status !== 'REGISTERED') throw new ConflictException('Only REGISTERED can be cancelled');
@@ -71,7 +71,7 @@ export class ParticipationsService {
 
     await this.prisma.participations.update({
       where: { id: p.id },
-      data: { status: 'CANCELLED_BY_STUDENT' }
+      data: { status: 'CANCELLED' }
     });
   }
 

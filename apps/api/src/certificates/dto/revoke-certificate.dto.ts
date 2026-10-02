@@ -1,7 +1,7 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { z } from 'zod';
 
-export class RevokeCertificateDto {
-  @IsNotEmpty()
-  @IsString()
-  reason: string;
-}
+export const revokeCertificateSchema = z.object({
+  reason: z.string().min(1),
+}).strict();
+
+export type RevokeCertificateDto = z.infer<typeof revokeCertificateSchema>;

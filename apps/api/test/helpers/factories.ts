@@ -56,3 +56,26 @@ export async function createCertificate(overrides: any = {}) {
 export async function createDocument(overrides: any = {}) {
   return null;
 }
+
+export async function createTestUser(...args: any[]) {
+  if (args.length >= 2 && typeof args[1] === 'string') {
+    return createUser({ role: args[1] as UserRole });
+  }
+  if (args.length === 1 && typeof args[0] === 'string') {
+    return createUser({ role: args[0] as UserRole });
+  }
+  return createUser(args[0] || {});
+}
+
+export async function getAuthHeaders(...args: any[]): Promise<Record<string, string>> {
+  const { bearer } = await import('./auth.js');
+  let user = args[0];
+  if (args.length >= 2 && typeof args[1] === 'string') {
+    // Called as (app, email, password)
+    const email = args[1];
+    user = await ownerPrisma.user.findUnique({ where: { email } });
+  }
+  const token = await bearer(user);
+  return { Authorization: token };
+}
+

@@ -1,7 +1,7 @@
 import { Injectable, ConflictException, ForbiddenException, UnprocessableEntityException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { generateToken, verifyToken } from './token.util';
-import { BulkAttendanceDto } from './dto/attendance.dto';
+import { PrismaService } from '../prisma/prisma.service.js';
+import { generateToken, verifyToken } from './token.util.js';
+import { BulkAttendanceDto } from './dto/attendance.dto.js';
 
 @Injectable()
 export class AttendanceService {
@@ -103,7 +103,7 @@ export class AttendanceService {
       }
     }
 
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx: any) => {
       await tx.participations.update({
         where: { id: participation.id },
         data: {
@@ -128,7 +128,7 @@ export class AttendanceService {
   }
 
   async bulkUpdateAttendance(activityId: string, data: BulkAttendanceDto, staffUserId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       for (const item of data.participations) {
         if (item.status === 'ATTENDED' && item.hours_awarded !== undefined) {
           const activity = await tx.activities.findUnique({ where: { id: activityId } });
@@ -191,7 +191,7 @@ export class AttendanceService {
 
   async markRemainingAsAbsent(activityId: string) {
     // When an activity becomes COMPLETED, remaining REGISTERED participations become ABSENT with 0 hours.
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const participations = await tx.participations.findMany({
         where: {
           activity_id: activityId,

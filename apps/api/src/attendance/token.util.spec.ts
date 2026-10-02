@@ -1,4 +1,5 @@
-import { generateToken, verifyToken } from './token.util';
+import { describe, it, expect } from 'vitest';
+import { generateToken, verifyToken } from './token.util.js';
 
 describe('ATT-01 Token Algorithm', () => {
   const masterSecret = 'super-secret-master-key';

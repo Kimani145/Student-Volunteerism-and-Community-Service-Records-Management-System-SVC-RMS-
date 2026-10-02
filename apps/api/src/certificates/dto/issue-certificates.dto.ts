@@ -1,8 +1,8 @@
-import { IsArray, IsOptional, IsUUID } from 'class-validator';
+import { z } from 'zod';
 
-export class IssueCertificatesDto {
-  @IsOptional()
-  @IsArray()
-  @IsUUID('4', { each: true })
-  participationIds?: string[];
-}
+export const issueCertificatesSchema = z.object({
+  participationIds: z.array(z.string().uuid()).optional(),
+  studentIds: z.array(z.string().uuid()).optional(),
+}).strict();
+
+export type IssueCertificatesDto = z.infer<typeof issueCertificatesSchema>;

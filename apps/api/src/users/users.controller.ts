@@ -5,7 +5,6 @@ import { UserRole } from '@svc-rms/shared';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { z } from 'zod';
 import { ZodValidationPipe } from '../students/zod-validation.pipe.js';
-import { UserRole } from '@svc-rms/shared';
 
 const createUserSchema = z.object({
   email: z.string().email(),

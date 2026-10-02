@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import request from 'supertest';
 import { createTestApp } from './helpers/app.js';
 import { applyTestEnv } from './test-env.js';
-import { bearer, createUser, createStudent, createActivity } from './helpers/auth.js';
+import { bearer, createUser, createStudent, createActivity } from './helpers/index.js';
 import { ownerPrisma } from './helpers/db.js';
 import { UserRole } from '@svc-rms/shared';
 
@@ -28,8 +28,8 @@ describeDb('REQ-RPT-01 to 05 / REQ-REC-06', () => {
     studentUser = await createUser({ role: UserRole.STUDENT });
     student = await createStudent(studentUser);
 
-    adminToken = await bearer({ id: admin.id, role: admin.role });
-    staffToken = await bearer({ id: staffUser.id, role: staffUser.role });
+    adminToken = await bearer({ id: admin.id, role: admin.role as any });
+    staffToken = await bearer({ id: staffUser.id, role: staffUser.role as any });
     
     activity = await createActivity({ organizer_id: staffUser.id });
 

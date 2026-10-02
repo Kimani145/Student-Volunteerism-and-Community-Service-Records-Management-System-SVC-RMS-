@@ -6,30 +6,30 @@ export class PartnersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getPartners() {
-    return await this.prisma.partners.findMany({ orderBy: { name: 'asc' } });
+    return await this.prisma.community_partners.findMany({ orderBy: { name: 'asc' } });
   }
 
   async createPartner(data: any) {
-    return await this.prisma.partners.create({
+    return await this.prisma.community_partners.create({
       data: {
         name: data.name,
-        contact_email: data.email,
-        contact_phone: data.phone,
-        mou_valid_until: data.mou_valid_until ? new Date(data.mou_valid_until) : undefined,
+        email: data.email,
+        phone: data.phone,
+        contact_person: data.contactPerson ?? data.contact_person,
       }
     });
   }
 
   async updatePartner(id: string, data: any) {
-    const partner = await this.prisma.partners.findUnique({ where: { id } });
+    const partner = await this.prisma.community_partners.findUnique({ where: { id } });
     if (!partner) throw new NotFoundException();
-    return await this.prisma.partners.update({
+    return await this.prisma.community_partners.update({
       where: { id },
       data: {
         name: data.name,
-        contact_email: data.email,
-        contact_phone: data.phone,
-        mou_valid_until: data.mou_valid_until ? new Date(data.mou_valid_until) : undefined,
+        email: data.email,
+        phone: data.phone,
+        contact_person: data.contactPerson ?? data.contact_person,
       }
     });
   }

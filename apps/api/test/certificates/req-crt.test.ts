@@ -3,9 +3,9 @@ import { ExecutionContext, InternalServerErrorException } from '@nestjs/common';
 import { DiscoveryService, Reflector } from '@nestjs/core';
 import request from 'supertest';
 import { ErrorCode, UserRole } from '@svc-rms/shared';
-import { createApp, pinoHttpOptions } from '../../src/main.js.js';
-import { applyTestEnv } from '../test-env.js.js';
-import { parseEnv } from '../../src/config/env.js.js';
+import { createApp, pinoHttpOptions } from '../../src/main.js';
+import { applyTestEnv } from '../test-env.js';
+import { parseEnv } from '../../src/config/env.js';
 
 describe('REQ-CRT', () => {
   let app: any;

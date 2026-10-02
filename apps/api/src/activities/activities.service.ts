@@ -120,8 +120,8 @@ export class ActivitiesService {
       if (activity.organizer_id === actorId) {
         throw new ConflictException({ code: ErrorCode.FORBIDDEN, detail: 'Approver cannot be the organizer' });
       }
-      const actor = await this.prisma.users.findUnique({ where: { id: actorId } });
-      if (!actor?.can_approve) {
+      const actor = await this.prisma.user.findUnique({ where: { id: actorId } });
+      if (!actor?.canApprove) {
         throw new ConflictException({ code: ErrorCode.FORBIDDEN, detail: 'Actor must be an approver' });
       }
       await this.prisma.activities.update({

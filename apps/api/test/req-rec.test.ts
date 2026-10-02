@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { createTestApp } from './helpers/app.js';
 import { ownerPrisma, clearDatabase } from './helpers/db.js';
-import { getAuthHeaders, createTestUser } from './helpers/auth.js';
+import { getAuthHeaders, createTestUser } from './helpers/index.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import request from 'supertest';
 import * as path from 'path';

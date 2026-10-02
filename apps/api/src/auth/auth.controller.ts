@@ -4,7 +4,7 @@ import { Public } from './public.decorator.js';
 import { CurrentUser } from './current-user.decorator.js';
 import { ZodValidationPipe } from '../students/zod-validation.pipe.js';
 import { z } from 'zod';
-import type { Request, Response } from 'express';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -47,7 +47,7 @@ export class AuthController {
   @Post('register')
   @Public()
   @HttpCode(201)
-  async register(@Body(new ZodValidationPipe(registerSchema)) body: any, @Req() req: Request) {
+  async register(@Body(new ZodValidationPipe(registerSchema)) body: any, @Req() req: FastifyRequest) {
     // Check domain
     const allowed = (process.env.ALLOWED_STUDENT_EMAIL_DOMAINS || 'example.test').split(',');
     const domain = body.email.split('@')[1];
@@ -67,12 +67,12 @@ export class AuthController {
   @Post('login')
   @Public()
   @HttpCode(200)
-  async login(@Body(new ZodValidationPipe(loginSchema)) body: any, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+  async login(@Body(new ZodValidationPipe(loginSchema)) body: any, @Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
     const ip = req.ip || '';
     const userAgent = req.headers['user-agent'] || '';
     const result = await this.authService.login(body.email, body.password, ip, userAgent);
     
-    res.cookie('refresh_token', result.refreshToken, {
+    (res as any).cookie('refresh_token', result.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV !== 'development',
       sameSite: 'lax',
@@ -85,13 +85,13 @@ export class AuthController {
 
   @Post('refresh')
   @HttpCode(200)
-  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response, @CurrentUser() user: any) {
-    const oldRefreshToken = req.cookies['refresh_token'];
+  async refresh(@Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply, @CurrentUser() user: any) {
+    const oldRefreshToken = (req as any).cookies?.['refresh_token'];
     if (!oldRefreshToken) throw new UnauthorizedException('Missing refresh token');
     
-    const result = await this.authService.refresh(oldRefreshToken, user.id, req.ip || '', req.headers['user-agent'] || '');
+    const result: any = await this.authService.refresh(oldRefreshToken, user.id, req.ip || '', req.headers['user-agent'] || '');
     
-    res.cookie('refresh_token', result.refreshToken, {
+    (res as any).cookie('refresh_token', result.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV !== 'development',
       sameSite: 'lax',
@@ -104,12 +104,12 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(200)
-  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response, @CurrentUser() user: any) {
-    const refreshToken = req.cookies['refresh_token'];
+  async logout(@Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply, @CurrentUser() user: any) {
+    const refreshToken = (req as any).cookies?.['refresh_token'];
     if (refreshToken) {
       await this.authService.logout(refreshToken);
     }
-    res.clearCookie('refresh_token', { path: '/api/v1/auth' });
+    (res as any).clearCookie('refresh_token', { path: '/api/v1/auth' });
   }
 
   @Get('me')

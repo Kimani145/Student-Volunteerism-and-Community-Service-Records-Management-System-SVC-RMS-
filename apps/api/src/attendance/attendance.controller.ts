@@ -1,8 +1,8 @@
 import { Controller, Get, Post, Put, Param, Body, Req } from '@nestjs/common';
-import { AttendanceService } from './attendance.service';
-import { CheckInDto, BulkAttendanceDto } from './dto/attendance.dto';
+import { AttendanceService } from './attendance.service.js';
+import { CheckInDto, BulkAttendanceDto } from './dto/attendance.dto.js';
 import { UserRole } from '@svc-rms/shared';
-import { Roles } from '../auth/roles.decorator';
+import { Roles } from '../auth/roles.decorator.js';
 
 @Controller('activities')
 export class AttendanceController {
