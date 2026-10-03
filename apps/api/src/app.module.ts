@@ -20,6 +20,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import { HealthController } from './health/health.controller.js';
 import { HealthService } from './health/health.service.js';
+import { JwtAuthGuard } from './auth/jwt-auth.guard.js';
 import { RoutePolicyGuard } from './auth/route-policy.guard.js';
 import { ProblemJsonFilter } from './common/problem-json.filter.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -61,6 +62,10 @@ const baseProviders = [
   {
     provide: APP_GUARD,
     useClass: ThrottlerGuard,
+  },
+  {
+    provide: APP_GUARD,
+    useClass: JwtAuthGuard,
   },
   {
     provide: APP_GUARD,

@@ -1,5 +1,5 @@
 'use client';
-import { apiFetch } from '../../lib/api-client.js';
+import { apiFetch } from '@/lib/api-client';
 import { useEffect, useState } from 'react';
 
 export default function VerifyEmailPage() {

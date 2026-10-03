@@ -1,13 +1,21 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { documentPatchSchema, documentDisposeSchema, documentLegalHoldSchema } from '@svc-rms/shared';
 
+function serializeDoc<T extends { size_bytes?: bigint | number } | null>(doc: T): T {
+  if (!doc) return doc;
+  return {
+    ...doc,
+    size_bytes: Number(doc.size_bytes),
+  };
+}
+
 @Injectable()
 export class RecordsService {
   constructor(
-    private prisma: PrismaService,
-    private storage: StorageService
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(StorageService) private readonly storage: StorageService
   ) {}
 
   async search(query: any) {
@@ -24,10 +32,6 @@ export class RecordsService {
       if (to) where.captured_at.lte = new Date(to);
     }
     if (q) {
-      // Using Raw query for full text search as requested: websearch_to_tsquery
-      // Prisma doesn't natively support websearch_to_tsquery inside `where` for search_tsv well in older versions without preview features,
-      // but we can use raw query for the whole or just use the generated column if Prisma supports it.
-      // Wait, let's just use Prisma's `contains` if full text is complex, or execute raw query for ids.
       const rawIds = await this.prisma.$queryRaw<{id: string}[]>`
         SELECT id FROM documents 
         WHERE search_tsv @@ websearch_to_tsquery('simple', ${q})
@@ -45,29 +49,31 @@ export class RecordsService {
       })
     ]);
 
-    return { data, total, page, limit };
+    return { data: data.map(serializeDoc), total, page, limit };
   }
 
   async getDocument(id: string) {
     const doc = await this.prisma.documents.findUnique({ where: { id } });
     if (!doc) throw new NotFoundException('Document not found');
-    return doc;
+    return serializeDoc(doc);
   }
 
   async patchDocument(id: string, updateData: any) {
     await this.getDocument(id);
-    return this.prisma.documents.update({
+    const updated = await this.prisma.documents.update({
       where: { id },
       data: updateData,
     });
+    return serializeDoc(updated);
   }
 
   async setLegalHold(id: string, legal_hold: boolean) {
     await this.getDocument(id);
-    return this.prisma.documents.update({
+    const updated = await this.prisma.documents.update({
       where: { id },
       data: { legal_hold }
     });
+    return serializeDoc(updated);
   }
 
   async disposeDocument(id: string, reason: string, adminId: string) {
@@ -79,7 +85,7 @@ export class RecordsService {
     // Remove file
     await this.storage.removeFile(doc.storage_key);
 
-    return this.prisma.documents.update({
+    const updated = await this.prisma.documents.update({
       where: { id },
       data: {
         status: 'DISPOSED',
@@ -88,5 +94,6 @@ export class RecordsService {
         disposal_reason: reason
       }
     });
+    return serializeDoc(updated);
   }
 }

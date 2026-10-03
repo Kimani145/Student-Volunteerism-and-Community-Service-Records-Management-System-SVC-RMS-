@@ -199,4 +199,103 @@ describe('Attendance (e2e)', () => {
         .expect(409);
     });
   });
+
+  describe('REQ-ATT-04', () => {
+    it('marks remaining REGISTERED participations as ABSENT with 0 hours on COMPLETED transition', async () => {
+      const http = app.getHttpServer();
+
+      // Create an activity in IN_PROGRESS state
+      const act = await createActivity({ organizer_id: organizerId, status: 'IN_PROGRESS' });
+      const stuUser = await createUser({ role: UserRole.STUDENT });
+      const stu = await createStudent(stuUser);
+      const part = await ownerPrisma.participations.create({
+        data: { student_id: stu.id, activity_id: act.id, status: 'REGISTERED' },
+      });
+
+      // Complete the activity
+      await request(http)
+        .post(`/api/v1/activities/${act.id}/complete`)
+        .set('Authorization', organizerToken)
+        .expect(201);
+
+      // Verify participation became ABSENT with 0 hours awarded
+      const updatedPart = await ownerPrisma.participations.findUnique({
+        where: { id: part.id },
+      });
+      expect(updatedPart?.status).toBe('ABSENT');
+      expect(Number(updatedPart?.hours_awarded)).toBe(0);
+    });
+  });
+
+  describe('REQ-ATT-06', () => {
+    it('validates bounds, returns 404 for unknown records, and does not leak raw tokens in audit log', async () => {
+      const http = app.getHttpServer();
+      const randomUuid = crypto.randomUUID();
+
+      // 1. Unknown activity returns 404
+      await request(http)
+        .get(`/api/v1/activities/${randomUuid}/check-in-token`)
+        .set('Authorization', organizerToken)
+        .expect(404);
+
+      await request(http)
+        .post(`/api/v1/activities/${randomUuid}/check-in`)
+        .set('Authorization', studentToken)
+        .send({ token: '1234567890' })
+        .expect(404);
+
+      // 2. Unknown participation returns 404 in bulk update
+      const act = await createActivity({ organizer_id: organizerId, status: 'IN_PROGRESS' });
+      await request(http)
+        .put(`/api/v1/activities/${act.id}/attendance`)
+        .set('Authorization', staffToken)
+        .send({
+          participations: [
+            { id: randomUuid, status: 'ATTENDED', hours_awarded: 2, reason: 'Good work' }
+          ]
+        })
+        .expect(404);
+
+      // 3. Hours out of bounds (< 0 or > service_hours) returns 422
+      const stuUser = await createUser({ role: UserRole.STUDENT });
+      const stu = await createStudent(stuUser);
+      const part = await ownerPrisma.participations.create({
+        data: { student_id: stu.id, activity_id: act.id, status: 'REGISTERED' },
+      });
+
+      await request(http)
+        .put(`/api/v1/activities/${act.id}/attendance`)
+        .set('Authorization', staffToken)
+        .send({
+          participations: [
+            { id: part.id, status: 'ATTENDED', hours_awarded: 999 }
+          ]
+        })
+        .expect(422);
+
+      // 4. Failed check-in creates audit log with NO raw token (privacy check)
+      const secretRawToken = 'SUPER_SECRET_RAW_TOKEN_999';
+      await request(http)
+        .post(`/api/v1/activities/${act.id}/check-in`)
+        .set('Authorization', studentToken)
+        .send({ token: secretRawToken })
+        .expect(422);
+
+      const logs = await ownerPrisma.auditLog.findMany({
+        where: {
+          recordId: act.id,
+          eventType: 'ATTENDANCE_CHECKIN_FAILED',
+        },
+        orderBy: { occurredAt: 'desc' },
+        take: 1,
+      });
+
+      expect(logs.length).toBeGreaterThan(0);
+      const latestLog = logs[0]!;
+      const logData = latestLog.newData as Record<string, unknown>;
+      expect(logData['reason']).toBe('TOKEN_INVALID');
+      expect(logData['token']).toBeUndefined();
+    });
+  });
 });
+

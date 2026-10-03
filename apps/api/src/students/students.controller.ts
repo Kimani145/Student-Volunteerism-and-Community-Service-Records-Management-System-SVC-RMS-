@@ -1,5 +1,5 @@
 import { ZodValidationPipe } from './zod-validation.pipe.js';
-import { Controller, Get, Patch, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Body, Query, UseGuards, Inject } from '@nestjs/common';
 import { StudentsService } from './students.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { Roles } from '../auth/roles.decorator.js';
@@ -16,7 +16,13 @@ const updateStudentSchema = z.object({
 
 @Controller('students')
 export class StudentsController {
-  constructor(private readonly studentsService: StudentsService) {}
+  constructor(@Inject(StudentsService) private readonly studentsService: StudentsService) {}
+
+  @Get('me/history')
+  @Roles(UserRole.STUDENT)
+  async getMyHistory(@CurrentUser() user: any) {
+    return this.studentsService.getStudentHistory(user.studentId || user.id);
+  }
 
   @Get('me')
   @Roles(UserRole.STUDENT)

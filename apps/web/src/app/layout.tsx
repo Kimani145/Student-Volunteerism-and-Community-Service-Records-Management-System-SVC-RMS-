@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { UserRole } from '@svc-rms/shared';
 import { NavShell } from '@/components/nav-shell';
+import { Providers } from '@/components/providers';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -25,8 +26,10 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body>
-        <NavShell role={role} />
-        <main className="p-6">{children}</main>
+        <Providers>
+          <NavShell role={role} />
+          <main className="p-6">{children}</main>
+        </Providers>
       </body>
     </html>
   );

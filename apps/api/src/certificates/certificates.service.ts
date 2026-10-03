@@ -1,7 +1,8 @@
-import { Injectable, ConflictException, NotFoundException, InternalServerErrorException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, InternalServerErrorException, ForbiddenException, Logger, Inject, HttpException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { PdfService } from '../pdf/pdf.service.js';
 import { SigningService } from '../signing/signing.service.js';
+import { ErrorCode } from '@svc-rms/shared';
 
 import { generateCvid } from '../signing/crockford.js';
 import { AuditEventsService } from '../audit/audit-events.service.js';
@@ -14,10 +15,10 @@ export class CertificatesService {
   private readonly logger = new Logger(CertificatesService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly pdfService: PdfService,
-    private readonly signingService: SigningService,
-    private readonly auditEvents: AuditEventsService,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(PdfService) private readonly pdfService: PdfService,
+    @Inject(SigningService) private readonly signingService: SigningService,
+    @Inject(AuditEventsService) private readonly auditEvents: AuditEventsService,
   ) {}
 
   public async issueCertificates(activityId: string, issuerId: string, participationIds?: string[]) {
@@ -159,11 +160,20 @@ export class CertificatesService {
             expected: cert.pdf_sha256,
             actual: hash,
           });
-          throw new InternalServerErrorException('INTEGRITY_FAILURE');
+          throw new InternalServerErrorException({
+            code: ErrorCode.INTEGRITY_FAILURE,
+            detail: 'File integrity check failed',
+          });
         }
         return file;
       } catch (err) {
-        if (err instanceof InternalServerErrorException) throw err;
+        if (
+          err instanceof HttpException ||
+          (err as any)?.status === 500 ||
+          (err as any)?.name === 'InternalServerErrorException'
+        ) {
+          throw err;
+        }
         this.logger.warn(`PDF not found on disk for cert ${cert.id}, regenerating...`);
       }
     }

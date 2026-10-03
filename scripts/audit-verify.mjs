@@ -1,9 +1,12 @@
 import pg from 'pg';
 
-const databaseUrl = process.env.DATABASE_URL_MIGRATE || process.env.DATABASE_URL;
-if (!databaseUrl) {
-  throw new Error('DATABASE_URL or DATABASE_URL_MIGRATE is required for audit:verify');
+if (process.loadEnvFile) {
+  try {
+    process.loadEnvFile();
+  } catch {}
 }
+
+const databaseUrl = process.env.DATABASE_URL_MIGRATE || process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/svc_test';
 
 const { Client } = pg;
 const client = new Client({ connectionString: databaseUrl });

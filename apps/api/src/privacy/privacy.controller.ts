@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ConflictException } from '@nestjs/common';
+import { Controller, Get, Param, ConflictException, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Roles } from '../auth/roles.decorator.js';
 import { UserRole } from '@svc-rms/shared';
@@ -7,8 +7,8 @@ import { AuditEventsService } from '../audit/audit-events.service.js';
 @Controller('students')
 export class PrivacyController {
   constructor(
-    private prisma: PrismaService,
-    private auditEvents: AuditEventsService
+    @Inject(PrismaService) private prisma: PrismaService,
+    @Inject(AuditEventsService) private auditEvents: AuditEventsService
   ) {}
 
   @Get(':id/export')

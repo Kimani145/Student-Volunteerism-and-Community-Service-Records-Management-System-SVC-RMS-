@@ -3,20 +3,48 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Logger } from 'nestjs-pino';
 import helmet from '@fastify/helmet';
+import fastifyCookie from '@fastify/cookie';
+import fastifyMultipart from '@fastify/multipart';
 import { AppModule } from './app.module.js';
 import { parseEnv } from './config/env.js';
 import { pinoHttpOptions } from './config/logger.js';
+import { AuditContextStorage } from './prisma/audit-context.storage.js';
+import { AuditContextInterceptor } from './prisma/audit-context.interceptor.js';
+
+(BigInt.prototype as any).toJSON = function () {
+  return Number(this);
+};
 
 export async function createApp(): Promise<NestFastifyApplication> {
+  if (process.loadEnvFile) {
+    try {
+      process.loadEnvFile('.env');
+    } catch {
+      try {
+        process.loadEnvFile('../../.env');
+      } catch {}
+    }
+  }
+
   parseEnv(process.env);
 
   const rootModule = process.env.NODE_ENV === 'test' ? AppModule.register({ isTest: true }) : AppModule;
 
-  const app = await NestFactory.create<NestFastifyApplication>(rootModule, new FastifyAdapter(), {
+  const app = await NestFactory.create<NestFastifyApplication>(rootModule, new FastifyAdapter({ trustProxy: true }), {
     bufferLogs: true,
   });
 
   app.useLogger(app.get(Logger));
+
+  await app.register(fastifyCookie);
+
+  const maxUploadBytes = parseInt(process.env.MAX_UPLOAD_BYTES || '10485760', 10);
+  await app.register(fastifyMultipart, {
+    limits: {
+      fileSize: maxUploadBytes,
+      files: 1,
+    },
+  });
 
   await app.register(helmet, {
     contentSecurityPolicy: false,
@@ -24,6 +52,10 @@ export async function createApp(): Promise<NestFastifyApplication> {
   });
 
   app.setGlobalPrefix('api/v1');
+
+  const auditStorage = app.get(AuditContextStorage);
+  app.useGlobalInterceptors(new AuditContextInterceptor(auditStorage));
+
   return app;
 }
 

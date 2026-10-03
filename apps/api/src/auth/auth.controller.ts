@@ -1,9 +1,12 @@
-import { Controller, Post, Body, Req, Res, Get, UnauthorizedException, UnprocessableEntityException, HttpCode, ConflictException, GoneException } from '@nestjs/common';
+import { Controller, Post, Body, Req, Res, Get, UnauthorizedException, UnprocessableEntityException, HttpCode, ConflictException, GoneException, Inject } from '@nestjs/common';
 import { AuthService } from './auth.service.js';
 import { Public } from './public.decorator.js';
+import { Roles } from './roles.decorator.js';
 import { CurrentUser } from './current-user.decorator.js';
 import { ZodValidationPipe } from '../students/zod-validation.pipe.js';
+import { UserRole, ErrorCode } from '@svc-rms/shared';
 import { z } from 'zod';
+import { Throttle } from '@nestjs/throttler';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 
 const registerSchema = z.object({
@@ -11,7 +14,7 @@ const registerSchema = z.object({
   password: z.string().min(12),
   regNumber: z.string().min(3),
   fullName: z.string().min(2),
-  schoolId: z.number().int(),
+  schoolId: z.number().int().min(1).max(32767),
   programme: z.string().min(2),
   yearOfStudy: z.number().int().min(1).max(7),
   noticeVersion: z.string(),
@@ -42,7 +45,7 @@ const changePasswordSchema = z.object({
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(@Inject(AuthService) private readonly authService: AuthService) {}
 
   @Post('register')
   @Public()
@@ -66,6 +69,7 @@ export class AuthController {
 
   @Post('login')
   @Public()
+  @Throttle({ default: { limit: 30, ttl: 600000 } })
   @HttpCode(200)
   async login(@Body(new ZodValidationPipe(loginSchema)) body: any, @Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
     const ip = req.ip || '';
@@ -84,12 +88,14 @@ export class AuthController {
   }
 
   @Post('refresh')
-  @HttpCode(200)
-  async refresh(@Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply, @CurrentUser() user: any) {
+  @Public()
+  async refresh(@Req() req: FastifyRequest, @Res() res: FastifyReply) {
     const oldRefreshToken = (req as any).cookies?.['refresh_token'];
-    if (!oldRefreshToken) throw new UnauthorizedException('Missing refresh token');
+    if (!oldRefreshToken) {
+      throw new UnauthorizedException({ code: ErrorCode.UNAUTHENTICATED, detail: 'Missing refresh token' });
+    }
     
-    const result: any = await this.authService.refresh(oldRefreshToken, user.id, req.ip || '', req.headers['user-agent'] || '');
+    const result: any = await this.authService.refresh(oldRefreshToken, req.ip || '', req.headers['user-agent'] || '');
     
     (res as any).cookie('refresh_token', result.refreshToken, {
       httpOnly: true,
@@ -99,10 +105,11 @@ export class AuthController {
       maxAge: 8 * 60 * 60 * 1000,
     });
 
-    return { accessToken: result.accessToken };
+    return res.status(200).send({ accessToken: result.accessToken });
   }
 
   @Post('logout')
+  @Roles(UserRole.STUDENT, UserRole.STAFF, UserRole.MANAGEMENT, UserRole.ADMIN)
   @HttpCode(200)
   async logout(@Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply, @CurrentUser() user: any) {
     const refreshToken = (req as any).cookies?.['refresh_token'];
@@ -113,6 +120,7 @@ export class AuthController {
   }
 
   @Get('me')
+  @Roles(UserRole.STUDENT, UserRole.STAFF, UserRole.MANAGEMENT, UserRole.ADMIN)
   async getMe(@CurrentUser() user: any) {
     return user;
   }
@@ -132,6 +140,7 @@ export class AuthController {
   }
 
   @Post('password/change')
+  @Roles(UserRole.STUDENT, UserRole.STAFF, UserRole.MANAGEMENT, UserRole.ADMIN)
   @HttpCode(200)
   async changePassword(@Body(new ZodValidationPipe(changePasswordSchema)) body: any, @CurrentUser() user: any) {
     await this.authService.changePassword(user.id, body.currentPassword, body.newPassword);

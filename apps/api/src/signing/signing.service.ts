@@ -1,20 +1,29 @@
 import { Injectable } from '@nestjs/common';
-import { createSign, createVerify, KeyObject, createPrivateKey } from 'crypto';
+import { sign, verify, KeyObject, createPrivateKey, createPublicKey } from 'crypto';
 import { canonicalizeJson } from './canonical.js';
 
 @Injectable()
 export class SigningService {
   private privateKey: KeyObject | null = null;
-  private readonly keyId: string;
+  private publicKey: KeyObject | null = null;
+  private keyId: string;
 
   constructor() {
-    this.keyId = process.env.CERT_SIGNING_KEY_ID || 'default-key';
+    this.keyId = process.env.CERT_SIGNING_KEY_ID || 'key-1';
+    this.initKeys();
+  }
+
+  public initKeys(): void {
+    this.keyId = process.env.CERT_SIGNING_KEY_ID || 'key-1';
     const keyStr = process.env.CERT_SIGNING_PRIVATE_KEY;
     if (keyStr) {
       try {
-        this.privateKey = createPrivateKey(keyStr.replace(/\\n/g, '\n'));
+        const formatted = keyStr.replace(/\\n/g, '\n');
+        this.privateKey = createPrivateKey(formatted);
+        this.publicKey = createPublicKey(this.privateKey);
       } catch {
-        // Key not available - signing disabled
+        this.privateKey = null;
+        this.publicKey = null;
       }
     }
   }
@@ -23,23 +32,72 @@ export class SigningService {
     return this.keyId;
   }
 
-  public sign(payload: Record<string, unknown>): string {
-    if (!this.privateKey) throw new Error('Signing key not configured');
-    const canonical = canonicalizeJson(payload);
-    const signer = createSign('Ed25519');
-    signer.update(canonical);
-    return signer.sign(this.privateKey).toString('base64url');
+  public getPublicKeyPem(): string | null {
+    if (!this.publicKey && this.privateKey) {
+      try {
+        this.publicKey = createPublicKey(this.privateKey);
+      } catch {}
+    }
+    if (!this.publicKey) return null;
+    return this.publicKey.export({ type: 'spki', format: 'pem' }).toString();
   }
 
-  public signCanonical(payload: Record<string, unknown>): string {
+  public sign(payload: Record<string, unknown>): Buffer {
+    if (!this.privateKey) {
+      this.initKeys();
+    }
+    if (!this.privateKey) throw new Error('Signing key not configured');
+    const canonical = canonicalizeJson(payload);
+    return sign(null, Buffer.from(canonical, 'utf-8'), this.privateKey);
+  }
+
+  public signCanonical(payload: Record<string, unknown>): Buffer {
     return this.sign(payload);
   }
 
-  public verify(payload: Record<string, unknown>, signature: string | Buffer): boolean {
-    return true;
+  public verify(payload: Record<string, unknown>, signature: string | Buffer | Uint8Array, publicKeyPem?: string): boolean {
+    return this.verifyCanonical(payload, signature, publicKeyPem);
   }
 
-  public verifyCanonical(payload: Record<string, unknown>, signature: string | Buffer, publicKeyPem?: string): boolean {
-    return true;
+  public verifyCanonical(payload: Record<string, unknown>, signature: string | Buffer | Uint8Array, publicKeyPem?: string): boolean {
+    let keyToUse: KeyObject | null = null;
+    if (publicKeyPem) {
+      try {
+        keyToUse = createPublicKey(publicKeyPem.replace(/\\n/g, '\n'));
+      } catch {
+        return false;
+      }
+    } else {
+      if (!this.publicKey) {
+        this.initKeys();
+      }
+      keyToUse = this.publicKey;
+    }
+
+    if (!keyToUse) return false;
+
+    let sigBuf: Buffer;
+    if (Buffer.isBuffer(signature)) {
+      sigBuf = signature;
+    } else if (signature instanceof Uint8Array) {
+      sigBuf = Buffer.from(signature);
+    } else if (typeof signature === 'string') {
+      if (signature.startsWith('\\x')) {
+        sigBuf = Buffer.from(signature.slice(2), 'hex');
+      } else if (/^[0-9a-fA-F]+$/.test(signature) && signature.length === 128) {
+        sigBuf = Buffer.from(signature, 'hex');
+      } else {
+        sigBuf = Buffer.from(signature, 'base64url');
+      }
+    } else {
+      return false;
+    }
+
+    const canonical = canonicalizeJson(payload);
+    try {
+      return verify(null, Buffer.from(canonical, 'utf-8'), keyToUse, sigBuf);
+    } catch {
+      return false;
+    }
   }
 }

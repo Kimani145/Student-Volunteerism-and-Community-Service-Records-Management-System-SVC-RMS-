@@ -1,6 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
+  Inject,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -17,11 +18,14 @@ export class JwtAuthGuard implements CanActivate {
   private secret: Uint8Array;
 
   constructor(
-    private readonly reflector: Reflector,
-    private readonly prisma: PrismaService,
-    private readonly auditContextStorage: AuditContextStorage,
+    @Inject(Reflector) private readonly reflector: Reflector,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(AuditContextStorage) private readonly auditContextStorage: AuditContextStorage,
   ) {
-    const secretKey = process.env.JWT_ACCESS_SECRET || 'test_secret_for_jwt_auth_guard_that_is_at_least_32_chars_long';
+    const secretKey = process.env.JWT_ACCESS_SECRET;
+    if (!secretKey) {
+      throw new Error('JWT_ACCESS_SECRET is required');
+    }
     this.secret = new TextEncoder().encode(secretKey);
   }
 
@@ -51,7 +55,9 @@ export class JwtAuthGuard implements CanActivate {
 
       let payload;
       try {
-        const { payload: verified } = await jwtVerify(token, this.secret);
+        const { payload: verified } = await jwtVerify(token, this.secret, {
+          algorithms: ['HS256'],
+        });
         payload = verified;
       } catch {
         throw new UnauthorizedException({ code: ErrorCode.UNAUTHENTICATED, detail: 'Token invalid' });

@@ -26,7 +26,7 @@ describe('REQ-STU-01 / REQ-STU-02', () => {
       .get('/api/v1/students/me')
       .set('Authorization', token)
       .expect(200);
-    expect(getRes.body.schoolId).toBe('Engineering');
+    expect(getRes.body.schoolId).toBe(1);
 
     // Update
     await request(app.getHttpServer())
@@ -39,7 +39,7 @@ describe('REQ-STU-01 / REQ-STU-02', () => {
       .get('/api/v1/students/me')
       .set('Authorization', token)
       .expect(200);
-    expect(getRes2.body.schoolId).toBe('Science');
+    expect(getRes2.body.schoolId).toBe(2);
     expect(getRes2.body.yearOfStudy).toBe(3);
 
     // Reject unknown keys
