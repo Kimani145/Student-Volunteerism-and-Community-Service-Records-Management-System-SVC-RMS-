@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 
+if (process.loadEnvFile) {
+  try {
+    process.loadEnvFile();
+  } catch {}
+}
+
 if (process.env.NODE_ENV === 'production') {
   throw new Error('db:seed is blocked when NODE_ENV=production');
 }

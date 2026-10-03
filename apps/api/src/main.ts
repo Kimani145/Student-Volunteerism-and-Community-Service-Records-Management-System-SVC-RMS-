@@ -16,6 +16,16 @@ import { AuditContextInterceptor } from './prisma/audit-context.interceptor.js';
 };
 
 export async function createApp(): Promise<NestFastifyApplication> {
+  if (process.loadEnvFile) {
+    try {
+      process.loadEnvFile('.env');
+    } catch {
+      try {
+        process.loadEnvFile('../../.env');
+      } catch {}
+    }
+  }
+
   parseEnv(process.env);
 
   const rootModule = process.env.NODE_ENV === 'test' ? AppModule.register({ isTest: true }) : AppModule;

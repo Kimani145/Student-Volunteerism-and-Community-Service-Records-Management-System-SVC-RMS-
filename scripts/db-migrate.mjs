@@ -2,6 +2,12 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import pg from 'pg';
 
+if (process.loadEnvFile) {
+  try {
+    process.loadEnvFile();
+  } catch {}
+}
+
 const { Client } = pg;
 const databaseUrl = process.env.DATABASE_URL_MIGRATE ?? process.env.DATABASE_URL;
 

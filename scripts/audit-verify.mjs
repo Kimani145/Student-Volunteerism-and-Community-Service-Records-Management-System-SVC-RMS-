@@ -1,5 +1,11 @@
 import pg from 'pg';
 
+if (process.loadEnvFile) {
+  try {
+    process.loadEnvFile();
+  } catch {}
+}
+
 const databaseUrl = process.env.DATABASE_URL_MIGRATE || process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/svc_test';
 
 const { Client } = pg;
