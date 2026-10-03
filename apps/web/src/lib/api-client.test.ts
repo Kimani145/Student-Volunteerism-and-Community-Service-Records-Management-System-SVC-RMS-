@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { apiGet } from './api-client';
+import { apiFetch } from './api-client';
 
 describe('api-client', () => {
   it('throws readable errors for problem+json responses', async () => {
@@ -12,6 +12,6 @@ describe('api-client', () => {
       }),
     );
 
-    await expect(apiGet('/healthz')).rejects.toThrow('Auth failed');
+    await expect(apiFetch('/healthz')).rejects.toThrow('Auth failed');
   });
 });

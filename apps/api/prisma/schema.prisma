@@ -1,3 +1,49 @@
+// ============================================================================
+// SVC-RMS Database Schema (ADR-04: PostgreSQL 16+ with Prisma for CRUD)
+//
+// Raw SQL Migration Features (Managed via raw SQL migrations, not Prisma):
+// 1. Triggers:
+//    - trg_audit_chain: BEFORE INSERT ON audit_log serialises chain writes via
+//      pg_advisory_xact_lock(7001) and computes SHA-256 hash chain.
+//    - trg_audit_no_mutation: BEFORE UPDATE OR DELETE ON audit_log prevents
+//      modifications (append-only immutability).
+//    - trg_audit_no_truncate: BEFORE TRUNCATE ON audit_log blocks truncation.
+//    - trg_audit_<table_name>: AFTER INSERT/UPDATE/DELETE on 9 audited tables
+//      (users, students, activities, participations, attendances, certificates,
+//      documents, community_partners, activity_reports) captures changes into
+//      audit_log using session settings (app.user_id, app.client_ip, app.request_id),
+//      redacting sensitive fields (password_hash, refresh_hash, token_hash).
+//    - trg_lock_participations & trg_lock_attendances: BEFORE UPDATE OR DELETE,
+//      enforces edit-lock if a certificate is already ISSUED.
+// 2. Generated Columns (search_tsv):
+//    - documents.search_tsv: TSVECTOR GENERATED ALWAYS AS (to_tsvector('simple', ...))
+//      STORED with GIN index ix_documents_search for full-text search.
+// 3. Partial Unique Indexes:
+//    - ux_certificates_one_active: ON certificates(participation_id) WHERE status = 'ISSUED'
+//    - ix_notifications_user_unread: ON notifications(user_id, created_at DESC) WHERE read_at IS NULL
+// 4. Check Constraints:
+//    - users: email = lower(email), NOT can_approve OR role IN ('STAFF','ADMIN')
+//    - students: reg_number = upper(reg_number), gender values, year_of_study BETWEEN 1 AND 6
+//    - email_tokens: purpose IN ('VERIFY_EMAIL','RESET_PASSWORD')
+//    - activities: geofence_radius_m > 0, capacity > 0, service_hours > 0, end_at > start_at,
+//      registration_closes_at <= start_at, approved_by <> organizer_id,
+//      status IN ('DRAFT','CANCELLED') OR approved_by IS NOT NULL
+//    - participations: hours_awarded >= 0
+//    - certificates: revoked status consistency check
+//    - record_classes: retention_years > 0
+//    - documents: mime_type whitelist, size_bytes > 0
+//    - audit_log: source IN ('DB','APP')
+// 5. Grants & Role Separation:
+//    - Migrations run as database owner (postgres / DATABASE_URL_MIGRATE).
+//    - Application connects as least-privilege role svc_app (DATABASE_URL).
+//    - svc_app has SELECT, INSERT, UPDATE, DELETE on operational tables,
+//      and SELECT, INSERT only on audit_log (no UPDATE, DELETE, or TRUNCATE).
+// 6. Audit Hash Chain:
+//    - Cryptographic SHA-256 hash chaining over (prev_hash, occurred_at, source,
+//      event_type, table_name, record_id, operation, old_data, new_data, actor_user_id).
+//    - Verified via pnpm audit:verify (recursive CTE).
+// ============================================================================
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -5,6 +51,303 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id                                          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                                       String             @unique @db.VarChar(255)
+  passwordHash                                String             @map("password_hash")
+  role                                        UserRole
+  canApprove                                  Boolean            @default(false) @map("can_approve")
+  isActive                                    Boolean            @default(true) @map("is_active")
+  email_verified_at                           DateTime?          @db.Timestamptz(6)
+  must_change_password                        Boolean            @default(false)
+  failed_login_count                          Int                @default(0)
+  locked_until                                DateTime?          @db.Timestamptz(6)
+  createdAt                                   DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                                   DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+  activities_activities_approved_byTousers    activities[]       @relation("activities_approved_byTousers")
+  activities_activities_organizer_idTousers   activities[]       @relation("activities_organizer_idTousers")
+  activity_reports                            activity_reports[]
+  attendances                                 attendances[]
+  certificates_certificates_issued_byTousers  certificates[]     @relation("certificates_issued_byTousers")
+  certificates_certificates_revoked_byTousers certificates[]     @relation("certificates_revoked_byTousers")
+  consents                                    consents[]
+  documents_documents_captured_byTousers      documents[]        @relation("documents_captured_byTousers")
+  documents_documents_disposed_byTousers      documents[]        @relation("documents_disposed_byTousers")
+  email_tokens                                email_tokens[]
+  notifications                               notifications[]
+  sessions                                    sessions[]
+  student                                     Student?
+
+  @@map("users")
+}
+
+model ActivityType {
+  id         Int          @id @default(autoincrement()) @db.SmallInt
+  code       String       @unique @db.VarChar(40)
+  name       String       @db.VarChar(100)
+  activities activities[]
+
+  @@map("activity_types")
+}
+
+model RecordClass {
+  code           String      @id @db.VarChar(40)
+  name           String      @db.VarChar(150)
+  retentionYears Int         @map("retention_years") @db.SmallInt
+  documents      documents[]
+
+  @@map("record_classes")
+}
+
+model School {
+  id       Int       @id @default(autoincrement()) @db.SmallInt
+  name     String    @unique @db.VarChar(255)
+  students Student[]
+
+  @@map("schools")
+}
+
+model AuditLog {
+  id          BigInt   @id @default(autoincrement())
+  occurredAt  DateTime @default(dbgenerated("clock_timestamp()")) @map("occurred_at") @db.Timestamptz(6)
+  source      String
+  eventType   String   @map("event_type")
+  tableName   String?  @map("table_name")
+  recordId    String?  @map("record_id")
+  operation   String?
+  oldData     Json?    @map("old_data")
+  newData     Json?    @map("new_data")
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  actorIp     String?  @map("actor_ip") @db.Inet
+  requestId   String?  @map("request_id")
+  prev_hash   Bytes?
+  row_hash    Bytes?
+
+  @@index([actorUserId, occurredAt(sort: Desc)], map: "ix_audit_actor_time")
+  @@index([tableName, recordId], map: "ix_audit_table_record")
+  @@map("audit_log")
+}
+
+model raw_migrations {
+  id         String   @id
+  applied_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("_raw_migrations")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model activities {
+  id                                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title                                String              @db.VarChar(255)
+  type_id                              Int                 @db.SmallInt
+  description                          String
+  venue                                String              @db.VarChar(255)
+  venue_lat                            Decimal?            @db.Decimal(9, 6)
+  venue_lng                            Decimal?            @db.Decimal(9, 6)
+  geofence_radius_m                    Int?
+  start_at                             DateTime            @db.Timestamptz(6)
+  end_at                               DateTime            @db.Timestamptz(6)
+  registration_closes_at               DateTime            @db.Timestamptz(6)
+  capacity                             Int
+  service_hours                        Decimal             @db.Decimal(4, 1)
+  eligible_years                       Int[]               @db.SmallInt
+  status                               activity_status     @default(DRAFT)
+  partner_id                           String?             @db.Uuid
+  organizer_id                         String              @db.Uuid
+  approved_by                          String?             @db.Uuid
+  approved_at                          DateTime?           @db.Timestamptz(6)
+  created_at                           DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at                           DateTime            @default(now()) @db.Timestamptz(6)
+  users_activities_approved_byTousers  User?               @relation("activities_approved_byTousers", fields: [approved_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_activities_organizer_idTousers User                @relation("activities_organizer_idTousers", fields: [organizer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  community_partners                   community_partners? @relation(fields: [partner_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  activity_types                       ActivityType        @relation(fields: [type_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  activity_reports                     activity_reports[]
+  documents                            documents[]
+  participations                       participations[]
+
+  @@index([status, start_at], map: "ix_activities_status_start")
+}
+
+model activity_reports {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  activity_id String     @db.Uuid
+  title       String     @db.VarChar(255)
+  body        String
+  created_by  String     @db.Uuid
+  created_at  DateTime   @default(now()) @db.Timestamptz(6)
+  activities  activities @relation(fields: [activity_id], references: [id], onUpdate: NoAction)
+  users       User       @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model attendances {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  participation_id String            @unique @db.Uuid
+  checked_in_at    DateTime          @default(now()) @db.Timestamptz(6)
+  method           attendance_method
+  recorded_by      String            @db.Uuid
+  lat              Decimal?          @db.Decimal(9, 6)
+  lng              Decimal?          @db.Decimal(9, 6)
+  location_flag    Boolean           @default(false)
+  remarks          String?
+  participations   participations    @relation(fields: [participation_id], references: [id], onUpdate: NoAction)
+  users            User              @relation(fields: [recorded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model certificates {
+  id                                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  participation_id                     String             @db.Uuid
+  cvid                                 String             @unique @db.VarChar(40)
+  payload                              Json
+  signature                            Bytes
+  key_id                               String             @db.VarChar(32)
+  status                               certificate_status @default(ISSUED)
+  issued_at                            DateTime           @default(now()) @db.Timestamptz(6)
+  issued_by                            String             @db.Uuid
+  revoked_at                           DateTime?          @db.Timestamptz(6)
+  revoked_by                           String?            @db.Uuid
+  revocation_reason                    String?
+  supersedes_id                        String?            @db.Uuid
+  template_version                     Int                @default(1) @db.SmallInt
+  pdf_storage_key                      String?
+  pdf_sha256                           String?            @db.Char(64)
+  users_certificates_issued_byTousers  User               @relation("certificates_issued_byTousers", fields: [issued_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  participations                       participations     @relation(fields: [participation_id], references: [id], onUpdate: NoAction)
+  users_certificates_revoked_byTousers User?              @relation("certificates_revoked_byTousers", fields: [revoked_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  certificates                         certificates?      @relation("certificatesTocertificates", fields: [supersedes_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  other_certificates                   certificates[]     @relation("certificatesTocertificates")
+}
+
+model community_partners {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String       @db.VarChar(255)
+  contact_person String?      @db.VarChar(255)
+  email          String?      @db.VarChar(255)
+  phone          String?      @db.VarChar(50)
+  address        String?
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime     @default(now()) @db.Timestamptz(6)
+  activities     activities[]
+}
+
+model consents {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String   @db.Uuid
+  notice_version String   @db.VarChar(20)
+  accepted_at    DateTime @default(now()) @db.Timestamptz(6)
+  ip             String?  @db.Inet
+  users          User     @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model documents {
+  id                                 String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  activity_id                        String                   @db.Uuid
+  class_code                         String                   @db.VarChar(40)
+  title                              String                   @db.VarChar(255)
+  description                        String?
+  file_name                          String                   @db.VarChar(255)
+  mime_type                          String                   @db.VarChar(100)
+  size_bytes                         BigInt
+  sha256                             String                   @db.Char(64)
+  storage_key                        String                   @unique
+  captured_at                        DateTime                 @default(now()) @db.Timestamptz(6)
+  captured_by                        String                   @db.Uuid
+  retention_expires_at               DateTime                 @db.Timestamptz(6)
+  legal_hold                         Boolean                  @default(false)
+  status                             document_status          @default(ACTIVE)
+  disposed_at                        DateTime?                @db.Timestamptz(6)
+  disposed_by                        String?                  @db.Uuid
+  disposal_reason                    String?
+  search_tsv                         Unsupported("tsvector")? @default(dbgenerated("to_tsvector('simple'::regconfig, (((((COALESCE(title, ''::character varying))::text || ' '::text) || COALESCE(description, ''::text)) || ' '::text) || (COALESCE(file_name, ''::character varying))::text))"))
+  activities                         activities               @relation(fields: [activity_id], references: [id], onUpdate: NoAction)
+  users_documents_captured_byTousers User                     @relation("documents_captured_byTousers", fields: [captured_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  record_classes                     RecordClass              @relation(fields: [class_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
+  users_documents_disposed_byTousers User?                    @relation("documents_disposed_byTousers", fields: [disposed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([activity_id], map: "ix_documents_activity")
+  @@index([search_tsv], map: "ix_documents_search", type: Gin)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model email_tokens {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  purpose    String
+  token_hash Bytes     @unique
+  expires_at DateTime  @db.Timestamptz(6)
+  used_at    DateTime? @db.Timestamptz(6)
+  users      User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model notifications {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  type       String    @db.VarChar(50)
+  title      String    @db.VarChar(255)
+  body       String?
+  link       String?
+  read_at    DateTime? @db.Timestamptz(6)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  users      User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model participations {
+  id                    String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  student_id            String               @db.Uuid
+  activity_id           String               @db.Uuid
+  status                participation_status @default(REGISTERED)
+  registered_at         DateTime             @default(now()) @db.Timestamptz(6)
+  cancelled_at          DateTime?            @db.Timestamptz(6)
+  hours_awarded         Decimal              @default(0) @db.Decimal(4, 1)
+  hours_override_reason String?
+  attendances           attendances?
+  certificates          certificates[]
+  activities            activities           @relation(fields: [activity_id], references: [id], onUpdate: NoAction)
+  students              Student              @relation(fields: [student_id], references: [id], onUpdate: NoAction)
+
+  @@unique([student_id, activity_id])
+  @@index([activity_id, status], map: "ix_participations_activity_status")
+}
+
+model sessions {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String    @db.Uuid
+  family_id    String    @db.Uuid
+  refresh_hash Bytes     @unique
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  last_used_at DateTime  @default(now()) @db.Timestamptz(6)
+  expires_at   DateTime  @db.Timestamptz(6)
+  revoked_at   DateTime? @db.Timestamptz(6)
+  ip           String?   @db.Inet
+  user_agent   String?
+  users        User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id], map: "ix_sessions_user")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model Student {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String           @unique @db.Uuid
+  reg_number     String           @unique @db.VarChar(50)
+  full_name      String           @db.VarChar(255)
+  gender         String           @default("UNDISCLOSED")
+  school_id      Int              @db.SmallInt
+  programme      String           @db.VarChar(255)
+  year_of_study  Int              @db.SmallInt
+  phone          String?          @db.VarChar(30)
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime         @default(now()) @db.Timestamptz(6)
+  participations participations[]
+  schools        School           @relation(fields: [school_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users          User             @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@map("students")
 }
 
 enum UserRole {
@@ -16,55 +359,32 @@ enum UserRole {
   @@map("user_role")
 }
 
-model User {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email         String   @unique @db.VarChar(255)
-  passwordHash  String   @map("password_hash")
-  role          UserRole
-  canApprove    Boolean  @default(false) @map("can_approve")
-  isActive      Boolean  @default(true) @map("is_active")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
-
-  @@map("users")
+enum activity_status {
+  DRAFT
+  PUBLISHED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
 }
 
-model ActivityType {
-  id   Int    @id @default(autoincrement()) @db.SmallInt
-  code String @unique @db.VarChar(40)
-  name String @db.VarChar(100)
-
-  @@map("activity_types")
+enum attendance_method {
+  QR_SELF
+  MANUAL_STAFF
 }
 
-model RecordClass {
-  code           String @id @db.VarChar(40)
-  name           String @db.VarChar(150)
-  retentionYears Int    @map("retention_years") @db.SmallInt
-
-  @@map("record_classes")
+enum certificate_status {
+  ISSUED
+  REVOKED
 }
 
-model School {
-  id   Int    @id @default(autoincrement()) @db.SmallInt
-  name String @unique @db.VarChar(255)
-
-  @@map("schools")
+enum document_status {
+  ACTIVE
+  DISPOSED
 }
 
-model AuditLog {
-  id          BigInt    @id @default(autoincrement())
-  occurredAt  DateTime  @default(now()) @map("occurred_at") @db.Timestamptz(6)
-  source      String
-  eventType   String    @map("event_type")
-  tableName   String?   @map("table_name")
-  recordId    String?   @map("record_id")
-  operation   String?
-  oldData     Json?     @map("old_data")
-  newData     Json?     @map("new_data")
-  actorUserId String?   @map("actor_user_id") @db.Uuid
-  actorIp     Unsupported("inet")? @map("actor_ip")
-  requestId   String?   @map("request_id")
-
-  @@map("audit_log")
+enum participation_status {
+  REGISTERED
+  CANCELLED
+  ATTENDED
+  ABSENT
 }

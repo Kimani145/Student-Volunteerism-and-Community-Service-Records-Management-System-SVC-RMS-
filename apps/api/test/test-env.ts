@@ -1,6 +1,11 @@
 export function applyTestEnv(): void {
   process.env.NODE_ENV = 'test';
-  process.env.DATABASE_URL ??= '******127.0.0.1:5432/svc_test';
+  const isCI = Boolean(process.env.CI && process.env.CI !== 'false');
+  if (!isCI) {
+    process.env.DATABASE_URL_MIGRATE ??= 'postgresql://postgres:postgres@127.0.0.1:5432/svc_test';
+    process.env.DATABASE_URL ??= 'postgresql://svc_app:svc_app_secret@127.0.0.1:5432/svc_test';
+    process.env.SVC_APP_PASSWORD ??= 'svc_app_secret';
+  }
   process.env.JWT_ACCESS_SECRET ??= '12345678901234567890123456789012';
   process.env.REFRESH_TOKEN_PEPPER ??= '1234567890123456';
   process.env.QR_MASTER_SECRET ??= 'abcdefghijklmnopqrstuvwxyz123456';

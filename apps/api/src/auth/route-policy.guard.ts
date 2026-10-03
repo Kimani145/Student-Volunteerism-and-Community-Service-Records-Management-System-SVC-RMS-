@@ -2,6 +2,7 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   UnauthorizedException,
@@ -13,12 +14,11 @@ import { ROLES_KEY } from './roles.decorator.js';
 
 type RequestLike = {
   user?: { role?: UserRole };
-  headers: Record<string, string | string[] | undefined>;
 };
 
 @Injectable()
 export class RoutePolicyGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(@Inject(Reflector) private readonly reflector: Reflector = new Reflector()) {}
 
   canActivate(context: ExecutionContext): boolean {
     const isPublic = this.reflector.getAllAndOverride<boolean>(PUBLIC_KEY, [
@@ -42,15 +42,12 @@ export class RoutePolicyGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest<RequestLike>();
-    const headerRole = request.headers['x-role'];
-    const role =
-      request.user?.role ?? (typeof headerRole === 'string' ? (headerRole as UserRole) : undefined);
-
-    if (!role) {
-      throw new UnauthorizedException({ code: ErrorCode.UNAUTHORIZED, detail: 'Authentication required' });
+    if (!request.user) {
+      throw new UnauthorizedException({ code: ErrorCode.UNAUTHENTICATED, detail: 'Authentication required' });
     }
 
-    if (!roles?.includes(role)) {
+    const role = request.user.role;
+    if (!role || !roles.includes(role)) {
       throw new ForbiddenException({ code: ErrorCode.FORBIDDEN, detail: 'Insufficient role' });
     }
 

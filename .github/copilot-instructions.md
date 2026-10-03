@@ -27,7 +27,7 @@ pnpm install · pnpm lint · pnpm typecheck · pnpm test · pnpm db:migrate · p
 ## Non-negotiables
 1. TypeScript strict. No `any` without a one-line justification comment.
 2. Every API route is deny-by-default: it declares `@Roles(...)` or `@Public()`. Student-owned objects go through the ownership helper; foreign objects return 404.
-3. Validate every input with zod; reject unknown keys. Never build SQL by string concatenation; use Prisma or tagged `$queryRaw`.
+3. Validate every input with zod; reject unknown keys. Never build SQL by string concatenation; use Prisma or tagged `$queryRaw`. All database writes must use Prisma model delegates or `$executeRaw` / `$executeRawUnsafe`; writes via `$queryRaw` or `$queryRawUnsafe` are strictly prohibited.
 4. All writes happen inside the request's audit-context transaction so `app.user_id`, `app.client_ip`, `app.request_id` are set.
 5. Errors are RFC 9457 problem+json using the codes in `packages/shared`.
 6. Never log passwords, tokens, cookies or request bodies. Never commit secrets. `.env.example` has placeholders only.

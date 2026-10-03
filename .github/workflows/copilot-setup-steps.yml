@@ -11,9 +11,17 @@ jobs:
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL_MIGRATE: postgresql://postgres:postgres@127.0.0.1:5432/svc_test
+      DATABASE_URL: postgresql://svc_app:svc_app_secret@127.0.0.1:5432/svc_test
+      SVC_APP_PASSWORD: svc_app_secret
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          version: 10.14.0
       - uses: actions/setup-node@v4
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate
+      - run: bash ops/db-init.sh

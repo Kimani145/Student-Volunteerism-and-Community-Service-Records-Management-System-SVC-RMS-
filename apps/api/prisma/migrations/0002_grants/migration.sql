@@ -3,7 +3,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'svc_app') THEN
-    CREATE ROLE svc_app LOGIN PASSWORD 'svc_app_password';
+    CREATE ROLE svc_app LOGIN;
   END IF;
 END $$;
 

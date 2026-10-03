@@ -1,16 +1,81 @@
-import type { ProblemJson } from '@svc-rms/shared';
+import { ErrorCode } from '@svc-rms/shared';
 
-export async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api/v1'}${path}`, {
-    credentials: 'include',
-    headers: { Accept: 'application/json, application/problem+json' },
-    cache: 'no-store',
-  });
+let _accessToken = '';
+export const getAccessToken = () => _accessToken;
+export const setAccessToken = (token: string) => { _accessToken = token; };
 
-  if (!response.ok) {
-    const maybeProblem = (await response.json().catch(() => null)) as ProblemJson | null;
-    throw new Error(maybeProblem?.detail ?? `Request failed (${response.status})`);
+let refreshPromise: Promise<void> | null = null;
+
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: ErrorCode | string,
+    public readonly detail: string,
+  ) {
+    super(detail);
+    this.name = 'ApiError';
+  }
+}
+
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  const token = getAccessToken();
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  
+  if (!headers.has('Content-Type') && init?.body && typeof init.body === 'string') {
+    headers.set('Content-Type', 'application/json');
   }
 
-  return (await response.json()) as T;
+  let response = await fetch(`/api/v1${path}`, {
+    ...init,
+    headers,
+    credentials: 'include',
+  });
+  
+  if (response.status === 401 && path !== '/auth/refresh' && path !== '/auth/login') {
+    if (!refreshPromise) {
+      refreshPromise = fetch('/api/v1/auth/refresh', { method: 'POST', credentials: 'include' })
+        .then(async (res) => {
+          if (!res.ok) throw new Error('Refresh failed');
+          const data = await res.json();
+          setAccessToken(data.accessToken);
+        })
+        .finally(() => { refreshPromise = null; });
+    }
+    
+    try {
+      await refreshPromise;
+      const newToken = getAccessToken();
+      const retryHeaders = new Headers(headers);
+      retryHeaders.set('Authorization', `Bearer ${newToken}`);
+      response = await fetch(`/api/v1${path}`, {
+        ...init,
+        headers: retryHeaders,
+        credentials: 'include',
+      });
+    } catch {
+      // Refresh failed, let the 401 propagate
+    }
+  }
+
+  if (!response.ok) {
+    let code = 'UNKNOWN_ERROR';
+    let detail = 'An unknown error occurred';
+    try {
+      const errorData = await response.json();
+      if (errorData.code) code = errorData.code;
+      if (errorData.detail) detail = errorData.detail;
+    } catch {}
+    throw new ApiError(response.status, code, detail);
+  }
+
+  if (response.status === 204) {
+    return null as any;
+  }
+  
+  const text = await response.text();
+  if (!text) return null as any;
+  return JSON.parse(text) as T;
 }

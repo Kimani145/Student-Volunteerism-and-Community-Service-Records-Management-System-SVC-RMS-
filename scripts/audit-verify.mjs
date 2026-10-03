@@ -1,41 +1,45 @@
-import { createHash } from 'node:crypto';
 import pg from 'pg';
 
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL is required for audit:verify');
+const databaseUrl = process.env.DATABASE_URL_MIGRATE || process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL or DATABASE_URL_MIGRATE is required for audit:verify');
 }
 
 const { Client } = pg;
-const client = new Client({ connectionString: process.env.DATABASE_URL });
+const client = new Client({ connectionString: databaseUrl });
 await client.connect();
 
-const rows = await client.query(`
-  SELECT id, occurred_at, source, event_type, table_name, record_id, operation, old_data, new_data, actor_user_id,
-         encode(prev_hash, 'hex') AS prev_hash_hex,
-         encode(row_hash, 'hex') AS row_hash_hex
-  FROM audit_log
-  ORDER BY id ASC
-`);
+try {
+  const result = await client.query(`
+    WITH chain AS (
+      SELECT
+        id,
+        prev_hash,
+        row_hash,
+        LAG(row_hash) OVER (ORDER BY id) AS expected_prev_hash,
+        sha256(convert_to(
+          coalesce(encode(prev_hash, 'hex'), '') || occurred_at::text || source || event_type ||
+          coalesce(table_name, '') || coalesce(record_id, '') || coalesce(operation, '') ||
+          coalesce(old_data::text, '') || coalesce(new_data::text, '') ||
+          coalesce(actor_user_id::text, ''), 'UTF8'
+        )) AS expected_row_hash
+      FROM audit_log
+    )
+    SELECT id
+    FROM chain
+    WHERE (expected_prev_hash IS NOT NULL AND prev_hash IS DISTINCT FROM expected_prev_hash)
+       OR (expected_prev_hash IS NULL AND prev_hash IS NOT NULL)
+       OR (row_hash IS DISTINCT FROM expected_row_hash)
+    ORDER BY id
+    LIMIT 1
+  `);
 
-let prevHex = null;
-for (const row of rows.rows) {
-  const material =
-    `${prevHex ?? ''}${row.occurred_at}${row.source}${row.event_type}` +
-    `${row.table_name ?? ''}${row.record_id ?? ''}${row.operation ?? ''}` +
-    `${row.old_data ? JSON.stringify(row.old_data) : ''}${row.new_data ? JSON.stringify(row.new_data) : ''}` +
-    `${row.actor_user_id ?? ''}`;
-
-  const expected = createHash('sha256').update(material, 'utf8').digest('hex');
-  if (row.prev_hash_hex !== prevHex || row.row_hash_hex !== expected) {
-    console.error(`audit chain verification failed at row id ${row.id}`);
+  if (result.rows.length > 0) {
+    console.error(`audit chain verification failed at row id ${result.rows[0].id}`);
     process.exitCode = 1;
-    break;
+  } else {
+    console.log('audit chain verified');
   }
-  prevHex = row.row_hash_hex;
+} finally {
+  await client.end();
 }
-
-if (process.exitCode !== 1) {
-  console.log('audit chain verified');
-}
-
-await client.end();
