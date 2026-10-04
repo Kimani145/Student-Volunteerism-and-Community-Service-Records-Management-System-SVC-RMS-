@@ -76,7 +76,7 @@ export default function CoordinatorAttendancePage() {
   useEffect(() => {
     if (!id) return;
     // Load activity details
-    apiFetch<Record<string, unknown>>(`/activities/${id}`)
+    apiFetch<{ title: string }>(`/activities/${id}`)
       .then((act) => setActivityTitle(act.title))
       .catch(() => {});
 
@@ -109,9 +109,10 @@ export default function CoordinatorAttendancePage() {
       });
       fetchTokenAndRoster();
     } catch (err: unknown) {
+      const apiErr = err as { detail?: string; message?: string };
       setStatusMsg({
         type: 'error',
-        text: err.detail || err.message || 'Failed to complete activity',
+        text: apiErr.detail || apiErr.message || 'Failed to complete activity',
       });
     } finally {
       setCompleting(false);

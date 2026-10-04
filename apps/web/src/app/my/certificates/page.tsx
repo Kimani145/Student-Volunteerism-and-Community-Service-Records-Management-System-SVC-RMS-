@@ -3,12 +3,24 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../../../lib/api-client';
 
+interface Certificate {
+  id: string;
+  cvid: string;
+  issued_at: string;
+  status: string;
+  participations: {
+    activities: {
+      title: string;
+    };
+  };
+}
+
 export default function MyCertificatesPage() {
-  const [certs, setCerts] = useState<Record<string, unknown>[]>([]);
+  const [certs, setCerts] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiFetch<Record<string, unknown>[]>('/certificates/me')
+    apiFetch<Certificate[]>('/certificates/me')
       .then(setCerts)
       .catch(console.error)
       .finally(() => setLoading(false));

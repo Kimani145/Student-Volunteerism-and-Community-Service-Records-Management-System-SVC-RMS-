@@ -35,7 +35,8 @@ export default function AuditPage() {
       setLogs(res.data || []);
       setTotal(res.total || 0);
     } catch (err: unknown) {
-      setError(err.detail || err.message || 'Failed to fetch audit records');
+      const apiErr = err as { detail?: string; message?: string };
+      setError(apiErr.detail || apiErr.message || 'Failed to fetch audit records');
     } finally {
       setLoading(false);
     }

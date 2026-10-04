@@ -77,13 +77,15 @@ export default function CheckInPage() {
 
       setStatus('success');
       setMessage('Attendance successfully verified and credited!');
-      if (res.hoursAwarded || res.serviceHours) {
-        setAwardedHours(res.hoursAwarded || res.serviceHours);
+      const hours = (res.hoursAwarded as number) || (res.serviceHours as number);
+      if (hours) {
+        setAwardedHours(hours);
       }
       setToken('');
     } catch (err: unknown) {
+      const apiErr = err as { detail?: string; message?: string };
       setStatus('error');
-      setMessage(err.detail || err.message || 'Check-in failed. Please verify the code or check with your coordinator.');
+      setMessage(apiErr.detail || apiErr.message || 'Check-in failed. Please verify the code or check with your coordinator.');
     }
   };
 

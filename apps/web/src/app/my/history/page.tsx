@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { useApi } from '@/lib/use-api';
-import { useAuth } from '@/lib/auth';
+import { useAuth, RoleGate } from '@/lib/auth';
 import { Loading } from '@/components/ui/Loading';
 import { Empty } from '@/components/ui/Empty';
 import { ErrorState } from '@/components/ui/ErrorState';

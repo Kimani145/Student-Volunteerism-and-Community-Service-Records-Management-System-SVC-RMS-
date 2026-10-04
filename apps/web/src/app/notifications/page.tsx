@@ -2,15 +2,23 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 
+interface AppNotification {
+  id: string;
+  title: string;
+  body: string;
+  created_at: string;
+  read_at: string | null;
+}
+
 export default function Notifications() {
-  const [notifications, setNotifications] = useState<Record<string, unknown>[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   useEffect(() => {
     load();
   }, []);
 
   const load = () => {
-    apiFetch<Record<string, unknown>[]>('/notifications').then(setNotifications).catch(console.error);
+    apiFetch<AppNotification[]>('/notifications').then(setNotifications).catch(console.error);
   };
 
   const markRead = async (id: string) => {

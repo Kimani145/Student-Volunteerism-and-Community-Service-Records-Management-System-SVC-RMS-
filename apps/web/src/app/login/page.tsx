@@ -24,7 +24,8 @@ export default function LoginPage() {
       const redirect = urlParams.get('redirect') || '/';
       router.push(redirect);
     } catch (err: unknown) {
-      setError(err.detail || err.message || 'Invalid email or password. Please try again.');
+      const apiErr = err as { detail?: string; message?: string };
+      setError(apiErr.detail || apiErr.message || 'Invalid email or password. Please try again.');
     } finally {
       setLoading(false);
     }

@@ -26,7 +26,7 @@ export default function RecordsPage() {
   const records = rawData?.data || [];
   
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [activities, setActivities] = useState<Record<string, unknown>[]>([]);
+  const [activities, setActivities] = useState<{ id: string; title: string }[]>([]);
   const [selectedActivityId, setSelectedActivityId] = useState('');
   const [uploadTitle, setUploadTitle] = useState('');
   const [recordClass, setRecordClass] = useState('ATTENDANCE_REGISTER');
@@ -40,7 +40,7 @@ export default function RecordsPage() {
 
   const loadActivities = async () => {
     try {
-      const res = await apiFetch<Record<string, unknown>>('/activities');
+      const res = await apiFetch<{ items: { id: string; title: string }[] }>('/activities');
       const items = res.items || [];
       setActivities(items);
       if (items.length > 0) {

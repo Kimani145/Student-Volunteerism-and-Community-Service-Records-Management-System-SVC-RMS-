@@ -49,7 +49,8 @@ export default function ActivityDetailPage() {
       const data = await apiFetch<ActivityDetail>(`/activities/${id}`);
       setActivity(data);
     } catch (err: unknown) {
-      setError(err.message || 'Failed to load activity details');
+      const apiErr = err as { message?: string };
+      setError(apiErr.message || 'Failed to load activity details');
     } finally {
       setLoading(false);
     }
@@ -75,9 +76,10 @@ export default function ActivityDetailPage() {
       setIsRegistered(true);
       setActionMsg({ type: 'success', text: 'You have successfully registered for this activity!' });
     } catch (err: unknown) {
+      const apiErr = err as { detail?: string; message?: string };
       setActionMsg({
         type: 'error',
-        text: err.detail || err.message || 'Registration failed. Check eligibility or schedule conflicts.',
+        text: apiErr.detail || apiErr.message || 'Registration failed. Check eligibility or schedule conflicts.',
       });
     } finally {
       setActionLoading(false);
@@ -93,9 +95,10 @@ export default function ActivityDetailPage() {
       setIsRegistered(false);
       setActionMsg({ type: 'success', text: 'Your registration has been cancelled.' });
     } catch (err: unknown) {
+      const apiErr = err as { detail?: string; message?: string };
       setActionMsg({
         type: 'error',
-        text: err.detail || err.message || 'Cancellation failed. You cannot cancel after the start time.',
+        text: apiErr.detail || apiErr.message || 'Cancellation failed. You cannot cancel after the start time.',
       });
     } finally {
       setActionLoading(false);
