@@ -3,7 +3,11 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
+import { useApi } from '@/lib/use-api';
 import { useAuth, RoleGate } from '@/lib/auth';
+import { Loading } from '@/components/ui/Loading';
+import { Empty } from '@/components/ui/Empty';
+import { ErrorState } from '@/components/ui/ErrorState';
 
 interface StaffActivity {
   id: string;
@@ -20,8 +24,6 @@ interface StaffActivity {
 
 export default function StaffActivitiesPage() {
   const { user } = useAuth();
-  const [activities, setActivities] = useState<StaffActivity[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -38,23 +40,8 @@ export default function StaffActivitiesPage() {
   const [newRegClose, setNewRegClose] = useState('');
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    loadActivities();
-  }, [statusFilter]);
-
-  const loadActivities = async () => {
-    try {
-      setLoading(true);
-      const query = statusFilter ? `?status=${statusFilter}` : '';
-      const res = await apiFetch<{ items: StaffActivity[]; total: number }>(`/activities${query}`);
-      setActivities(res.items || []);
-    } catch (err) {
-      console.error('Failed to load staff activities', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  const { data, error, loading, retry } = useApi<{ items: StaffActivity[]; total: number }>(`/activities${statusFilter ? `?status=${statusFilter}` : ''}`);
+  const activities = data?.items || [];
   const handleCreateActivity = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
@@ -82,9 +69,10 @@ export default function StaffActivitiesPage() {
       setNewTitle('');
       setNewDesc('');
       setNewVenue('');
-      loadActivities();
+      retry();
     } catch (err: unknown) {
-      setActionMsg({ type: 'error', text: err.detail || err.message || 'Failed to create activity' });
+      const apiErr = err as any;
+      setActionMsg({ type: 'error', text: apiErr.detail || apiErr.message || 'Failed to create activity' });
     } finally {
       setCreating(false);
     }
@@ -98,11 +86,12 @@ export default function StaffActivitiesPage() {
         body: JSON.stringify({ status: nextStatus }),
       });
       setActionMsg({ type: 'success', text: `Activity moved to ${nextStatus}!` });
-      loadActivities();
+      retry();
     } catch (err: unknown) {
+      const apiErr = err as any;
       setActionMsg({
         type: 'error',
-        text: err.detail || err.message || `Failed to transition activity to ${nextStatus}`,
+        text: apiErr.detail || apiErr.message || `Failed to transition activity to ${nextStatus}`,
       });
     }
   };
@@ -155,9 +144,11 @@ export default function StaffActivitiesPage() {
         {/* Activities Table */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           {loading ? (
-            <div className="p-8 text-center text-slate-500">Loading activities...</div>
+            <Loading message="Loading activities..." />
+          ) : error ? (
+            <ErrorState error={error} onRetry={retry} />
           ) : activities.length === 0 ? (
-            <div className="p-12 text-center text-slate-500">No activities found in this view.</div>
+            <Empty message="No activities found in this view." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">

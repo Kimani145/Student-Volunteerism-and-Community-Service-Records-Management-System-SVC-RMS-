@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
+import { useApi } from '@/lib/use-api';
 import { useAuth } from '@/lib/auth';
 
 interface RegisteredActivity {
@@ -28,6 +29,8 @@ export default function CheckInPage() {
   const [message, setMessage] = useState('');
   const [awardedHours, setAwardedHours] = useState<number | null>(null);
 
+  const { data: rawHistory, error, loading, retry } = useApi<RegisteredActivity[]>('/students/me/history');
+  
   useEffect(() => {
     // Check URL search params for ?activity=
     if (typeof window !== 'undefined') {
@@ -37,24 +40,17 @@ export default function CheckInPage() {
         setActivityId(actParam);
       }
     }
+  }, []);
 
-    if (user?.role === 'STUDENT') {
-      loadRegisteredActivities();
-    }
-  }, [user]);
-
-  const loadRegisteredActivities = async () => {
-    try {
-      const list = await apiFetch<RegisteredActivity[]>('/students/me/history');
-      const active = list.filter((r) => r.status === 'REGISTERED');
+  useEffect(() => {
+    if (rawHistory) {
+      const active = rawHistory.filter((r) => r.status === 'REGISTERED');
       setRegisteredActivities(active);
       if (active.length > 0 && !activityId) {
         setActivityId(active[0]!.activity_id);
       }
-    } catch (err) {
-      console.error('Failed to load registered activities', err);
     }
-  };
+  }, [rawHistory, activityId]);
 
   const handleCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();

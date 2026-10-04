@@ -2,7 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api-client';
+import { useApi } from '@/lib/use-api';
 import { RoleGate, useAuth } from '@/lib/auth';
+import { Loading } from '@/components/ui/Loading';
+import { Empty } from '@/components/ui/Empty';
+import { ErrorState } from '@/components/ui/ErrorState';
 
 interface UserItem {
   id: string;
@@ -14,31 +18,15 @@ interface UserItem {
 
 export default function UsersAdminPage() {
   const { user: currentUser } = useAuth();
-  const [users, setUsers] = useState<UserItem[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const { data, error, loading, retry } = useApi<{ items: UserItem[]; total: number }>('/users?take=50');
+  const users = data?.items || [];
+  const total = data?.total || 0;
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState<'STAFF' | 'MANAGEMENT' | 'ADMIN'>('STAFF');
   const [creating, setCreating] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  const loadUsers = async () => {
-    try {
-      setLoading(true);
-      const res = await apiFetch<{ items: UserItem[]; total: number }>('/users?take=50');
-      setUsers(res.items || []);
-      setTotal(res.total || 0);
-    } catch (err: unknown) {
-      console.error('Failed to load users', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,9 +40,10 @@ export default function UsersAdminPage() {
       setShowCreateModal(false);
       setNewEmail('');
       setMessage({ type: 'success', text: `Created user ${newEmail} (${newRole}) successfully!` });
-      loadUsers();
+      retry();
     } catch (err: unknown) {
-      setMessage({ type: 'error', text: err.detail || err.message || 'Failed to create user' });
+      const apiErr = err as any;
+      setMessage({ type: 'error', text: apiErr.detail || apiErr.message || 'Failed to create user' });
     } finally {
       setCreating(false);
     }
@@ -72,9 +61,10 @@ export default function UsersAdminPage() {
         body: JSON.stringify({ isActive: nextState }),
       });
       setMessage({ type: 'success', text: `User ${user.email} is now ${nextState ? 'active' : 'deactivated'}.` });
-      loadUsers();
+      retry();
     } catch (err: unknown) {
-      setMessage({ type: 'error', text: err.detail || err.message || `Failed to ${action} user` });
+      const apiErr = err as any;
+      setMessage({ type: 'error', text: apiErr.detail || apiErr.message || `Failed to ${action} user` });
     }
   };
 
@@ -106,14 +96,18 @@ export default function UsersAdminPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <span className="text-sm font-bold text-slate-900">Total Users: {total}</span>
-          </div>
+        {loading ? (
+          <Loading message="Loading user directory..." />
+        ) : error ? (
+          <ErrorState error={error} onRetry={retry} />
+        ) : users.length === 0 ? (
+          <Empty message="No system users found." actionText="Create New User" onAction={() => setShowCreateModal(true)} />
+        ) : (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <span className="text-sm font-bold text-slate-900">Total Users: {total}</span>
+            </div>
 
-          {loading ? (
-            <div className="p-8 text-center text-slate-500">Loading user directory...</div>
-          ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 text-xs uppercase font-semibold">
@@ -181,8 +175,8 @@ export default function UsersAdminPage() {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Create Modal */}
         {showCreateModal && (

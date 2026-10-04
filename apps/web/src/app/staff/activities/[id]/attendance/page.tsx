@@ -6,6 +6,8 @@ import Link from 'next/link';
 import QRCode from 'qrcode';
 import { apiFetch } from '@/lib/api-client';
 import { RoleGate } from '@/lib/auth';
+import { Loading } from '@/components/ui/Loading';
+import { Empty } from '@/components/ui/Empty';
 
 interface AttendanceTokenResponse {
   token: string;
@@ -64,7 +66,8 @@ export default function CoordinatorAttendancePage() {
       const rosterRes = await apiFetch<Participant[]>(`/activities/${id}/roster`);
       setRoster(rosterRes || []);
     } catch (e: unknown) {
-      console.error('Failed to fetch attendance token or roster', e);
+      const err = e as any;
+      setStatusMsg({ type: 'error', text: err.detail || err.message || 'Failed to fetch attendance token or roster' });
     } finally {
       setLoading(false);
     }
@@ -214,26 +217,22 @@ export default function CoordinatorAttendancePage() {
             </div>
 
             <div className="overflow-x-auto flex-1">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 text-xs uppercase font-semibold">
-                  <tr>
-                    <th className="py-3 px-6">Student Name</th>
-                    <th className="py-3 px-4">Reg Number</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-6 text-right">Method</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {loading ? (
+              {loading ? (
+                <Loading message="Loading roster..." />
+              ) : roster.length === 0 ? (
+                <Empty message="No students registered yet." />
+              ) : (
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 text-xs uppercase font-semibold">
                     <tr>
-                      <td colSpan={4} className="py-8 text-center text-slate-400">Loading roster...</td>
+                      <th className="py-3 px-6">Student Name</th>
+                      <th className="py-3 px-4">Reg Number</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-6 text-right">Method</th>
                     </tr>
-                  ) : roster.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="py-12 text-center text-slate-400">No students registered yet.</td>
-                    </tr>
-                  ) : (
-                    roster.map((part) => (
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {roster.map((part) => (
                       <tr key={part.id} className="hover:bg-slate-50/70 transition">
                         <td className="py-3.5 px-6 font-semibold text-slate-900">
                           {part.students?.full_name || 'Student'}
@@ -258,10 +257,10 @@ export default function CoordinatorAttendancePage() {
                           {part.status === 'ATTENDED' ? 'QR / Code' : '-'}
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </div>

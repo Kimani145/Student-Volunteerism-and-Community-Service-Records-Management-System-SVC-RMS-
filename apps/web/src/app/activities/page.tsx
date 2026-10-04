@@ -3,7 +3,11 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
+import { useApi } from '@/lib/use-api';
 import { useAuth } from '@/lib/auth';
+import { Loading } from '@/components/ui/Loading';
+import { Empty } from '@/components/ui/Empty';
+import { ErrorState } from '@/components/ui/ErrorState';
 
 interface Activity {
   id: string;
@@ -21,39 +25,28 @@ interface Activity {
 
 export default function ActivitiesPage() {
   const { user } = useAuth();
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState('');
   const [types, setTypes] = useState<string[]>([]);
+  
+  const params = new URLSearchParams();
+  if (search) params.set('q', search);
+  if (selectedType) params.set('type', selectedType);
+  const searchUrl = `/activities?${params.toString()}`;
+
+  const { data, error, loading, retry } = useApi<{ items: Activity[]; total: number }>(searchUrl);
+  const activities = data?.items || [];
 
   useEffect(() => {
-    loadActivities();
-  }, [search, selectedType]);
-
-  const loadActivities = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      if (search) params.set('q', search);
-      if (selectedType) params.set('type', selectedType);
-      
-      const res = await apiFetch<{ items: Activity[]; total: number }>(`/activities?${params.toString()}`);
-      setActivities(res.items || []);
-
-      // Extract unique types
+    if (data?.items && types.length === 0) {
       const uniqueTypes = Array.from(
-        new Set((res.items || []).map((a) => a.activity_types?.name).filter(Boolean) as string[])
+        new Set(data.items.map((a) => a.activity_types?.name).filter(Boolean) as string[])
       );
-      if (uniqueTypes.length > 0 && types.length === 0) {
+      if (uniqueTypes.length > 0) {
         setTypes(uniqueTypes);
       }
-    } catch (err) {
-      console.error('Failed to load activities', err);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [data, types.length]);
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6">
@@ -102,17 +95,11 @@ export default function ActivitiesPage() {
 
       {/* Activity Grid */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3].map((n) => (
-            <div key={n} className="h-64 rounded-xl bg-slate-100 animate-pulse" />
-          ))}
-        </div>
+        <Loading message="Loading activities..." />
+      ) : error ? (
+        <ErrorState error={error} onRetry={retry} />
       ) : activities.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-xl border border-slate-200 p-8">
-          <div className="text-4xl mb-3">🔍</div>
-          <h3 className="text-lg font-bold text-slate-800">No activities found</h3>
-          <p className="text-slate-500 text-sm mt-1">Try adjusting your search terms or filters.</p>
-        </div>
+        <Empty message="No activities found." actionText="Clear Filters" onAction={() => { setSearch(''); setSelectedType(''); }} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {activities.map((act) => {
