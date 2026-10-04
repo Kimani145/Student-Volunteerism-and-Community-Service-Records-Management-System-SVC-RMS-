@@ -185,6 +185,10 @@ describe('Registrations (e2e)', () => {
 
       const successCount = results.filter((r) => r.status === 201).length;
       const conflictCount = results.filter((r) => r.status === 409).length;
+      const unexpected = results.filter((r) => r.status !== 201 && r.status !== 409);
+      if (unexpected.length > 0) {
+        console.error('Unexpected statuses:', unexpected.map(r => ({ status: r.status, body: r.body })));
+      }
 
       expect(successCount).toBe(50);
       expect(conflictCount).toBe(150);

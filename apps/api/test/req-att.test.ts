@@ -267,7 +267,7 @@ describe('Attendance (e2e)', () => {
         .post(`/api/v1/activities/${act.id}/check-in`)
         .set('Authorization', studentToken)
         .send({ token: tokenRes.body.token, lat: -4.0435, lng: 39.6682 })
-        .expect(200);
+        .expect(201);
 
       expect(checkInRes.body.message).toBe('Checked in successfully');
       expect(checkInRes.body.location_flag).toBe(true);
