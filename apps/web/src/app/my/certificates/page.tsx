@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react';
 import { apiFetch } from '../../../lib/api-client';
 
 export default function MyCertificatesPage() {
-  const [certs, setCerts] = useState<any[]>([]);
+  const [certs, setCerts] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiFetch<any[]>('/certificates/me')
+    apiFetch<Record<string, unknown>[]>('/certificates/me')
       .then(setCerts)
       .catch(console.error)
       .finally(() => setLoading(false));

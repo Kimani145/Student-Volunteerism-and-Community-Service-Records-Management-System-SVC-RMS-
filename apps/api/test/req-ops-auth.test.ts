@@ -1,5 +1,6 @@
 import { PATH_METADATA, METHOD_METADATA } from '@nestjs/common/constants.js';
 import { ExecutionContext, InternalServerErrorException } from '@nestjs/common';
+import * as fs from 'fs';
 import { DiscoveryService, Reflector } from '@nestjs/core';
 import request from 'supertest';
 import { ErrorCode, UserRole } from '@svc-rms/shared';
@@ -239,5 +240,12 @@ describe('REQ-OPS-01', () => {
     } finally {
       process.env.DATABASE_URL = prevUrl;
     }
+  });
+});
+
+describe('REQ-OPS-02', () => {
+  it('has backup and restore scripts', () => {
+    expect(fs.existsSync('../../ops/backup.sh')).toBe(true);
+    expect(fs.existsSync('../../ops/restore.sh')).toBe(true);
   });
 });

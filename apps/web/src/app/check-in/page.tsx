@@ -74,7 +74,7 @@ export default function CheckInPage() {
     setAwardedHours(null);
 
     try {
-      const res = await apiFetch<any>(`/activities/${activityId}/check-in`, {
+      const res = await apiFetch<Record<string, unknown>>(`/activities/${activityId}/check-in`, {
         method: 'POST',
         body: JSON.stringify({ token: token.toUpperCase() }),
       });
@@ -85,7 +85,7 @@ export default function CheckInPage() {
         setAwardedHours(res.hoursAwarded || res.serviceHours);
       }
       setToken('');
-    } catch (err: any) {
+    } catch (err: unknown) {
       setStatus('error');
       setMessage(err.detail || err.message || 'Check-in failed. Please verify the code or check with your coordinator.');
     }

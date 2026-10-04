@@ -2,7 +2,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import pg from 'pg';
 
-if (process.loadEnvFile) {
+if (process.env.NODE_ENV !== 'production' && process.loadEnvFile) {
   try {
     process.loadEnvFile();
   } catch {}

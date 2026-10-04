@@ -3,14 +3,14 @@ import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 
 export default function Notifications() {
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<Record<string, unknown>[]>([]);
 
   useEffect(() => {
     load();
   }, []);
 
   const load = () => {
-    apiFetch<any[]>('/notifications').then(setNotifications).catch(console.error);
+    apiFetch<Record<string, unknown>[]>('/notifications').then(setNotifications).catch(console.error);
   };
 
   const markRead = async (id: string) => {

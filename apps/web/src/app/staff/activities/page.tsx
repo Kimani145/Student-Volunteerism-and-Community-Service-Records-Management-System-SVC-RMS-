@@ -83,7 +83,7 @@ export default function StaffActivitiesPage() {
       setNewDesc('');
       setNewVenue('');
       loadActivities();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setActionMsg({ type: 'error', text: err.detail || err.message || 'Failed to create activity' });
     } finally {
       setCreating(false);
@@ -99,7 +99,7 @@ export default function StaffActivitiesPage() {
       });
       setActionMsg({ type: 'success', text: `Activity moved to ${nextStatus}!` });
       loadActivities();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setActionMsg({
         type: 'error',
         text: err.detail || err.message || `Failed to transition activity to ${nextStatus}`,

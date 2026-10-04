@@ -33,7 +33,7 @@ export default function UsersAdminPage() {
       const res = await apiFetch<{ items: UserItem[]; total: number }>('/users?take=50');
       setUsers(res.items || []);
       setTotal(res.total || 0);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load users', err);
     } finally {
       setLoading(false);
@@ -53,7 +53,7 @@ export default function UsersAdminPage() {
       setNewEmail('');
       setMessage({ type: 'success', text: `Created user ${newEmail} (${newRole}) successfully!` });
       loadUsers();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setMessage({ type: 'error', text: err.detail || err.message || 'Failed to create user' });
     } finally {
       setCreating(false);
@@ -73,7 +73,7 @@ export default function UsersAdminPage() {
       });
       setMessage({ type: 'success', text: `User ${user.email} is now ${nextState ? 'active' : 'deactivated'}.` });
       loadUsers();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setMessage({ type: 'error', text: err.detail || err.message || `Failed to ${action} user` });
     }
   };

@@ -34,7 +34,7 @@ export default function AuditPage() {
       const res = await apiFetch<{ data: AuditLogItem[]; total: number }>(`/audit${query}`);
       setLogs(res.data || []);
       setTotal(res.total || 0);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.detail || err.message || 'Failed to fetch audit records');
     } finally {
       setLoading(false);

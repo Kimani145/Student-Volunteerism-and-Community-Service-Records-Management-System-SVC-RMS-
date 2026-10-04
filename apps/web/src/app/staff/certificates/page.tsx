@@ -6,7 +6,7 @@ import { RoleGate } from '@/lib/auth';
 
 export default function StaffCertificatesPage() {
   const [certId, setCertId] = useState('');
-  const [cert, setCert] = useState<any>(null);
+  const [cert, setCert] = useState<Record<string, unknown>>(null);
   const [error, setError] = useState('');
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,9 +18,9 @@ export default function StaffCertificatesPage() {
     setError('');
     setActionSuccess('');
     try {
-      const data = await apiFetch<any>(`/certificates/${certId}`);
+      const data = await apiFetch<Record<string, unknown>>(`/certificates/${certId}`);
       setCert(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.message || 'Failed to fetch certificate');
       setCert(null);
     } finally {
@@ -37,20 +37,20 @@ export default function StaffCertificatesPage() {
       });
       setActionSuccess('Certificate revoked successfully');
       setCert({ ...cert, status: 'REVOKED' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       alert(err.message || 'Failed to revoke certificate');
     }
   };
 
   const handleReissue = async () => {
     try {
-      const newCert = await apiFetch<any>(`/certificates/${cert.id}/reissue`, {
+      const newCert = await apiFetch<Record<string, unknown>>(`/certificates/${cert.id}/reissue`, {
         method: 'POST',
       });
       setActionSuccess(`Certificate reissued successfully! New CVID: ${newCert.cvid}`);
       setCertId(newCert.id);
       setCert(newCert);
-    } catch (err: any) {
+    } catch (err: unknown) {
       alert(err.message || 'Failed to reissue certificate');
     }
   };

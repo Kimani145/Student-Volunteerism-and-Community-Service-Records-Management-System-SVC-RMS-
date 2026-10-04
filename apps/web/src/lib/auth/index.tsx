@@ -1,9 +1,10 @@
 'use client';
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { UserRole, type AuthUser } from '@svc-rms/shared';
 import { apiFetch, getAccessToken, setAccessToken } from '@/lib/api-client';
 
 interface AuthContextType {
-  user: any;
+  user: AuthUser | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   loading: boolean;
@@ -12,16 +13,16 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Initial load
     const loadUser = async () => {
       try {
-        const res = await apiFetch<any>('/auth/me');
+        const res = await apiFetch<AuthUser>('/auth/me');
         setUser(res);
-      } catch (err) {
+      } catch {
         setUser(null);
       } finally {
         setLoading(false);
@@ -36,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ email, password })
     });
     setAccessToken(accessToken);
-    const me = await apiFetch<any>('/auth/me');
+    const me = await apiFetch<AuthUser>('/auth/me');
     setUser(me);
   };
 
@@ -62,7 +63,7 @@ export function useAuth() {
   return ctx;
 }
 
-export function RoleGate({ roles, children }: { roles: string[], children: ReactNode }) {
+export function RoleGate({ roles, children }: { roles: (UserRole | `${UserRole}` | string)[], children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <div>Loading...</div>;
   if (!user || !roles.includes(user.role)) return <div>Access Denied</div>;

@@ -10,5 +10,99 @@
       "AUD-04",
       "AUTH-07"
     ]
+  },
+  "S1": {
+    "status": "done",
+    "reqs": [
+      "AUTH-01",
+      "AUTH-02",
+      "AUTH-03",
+      "AUTH-04",
+      "AUTH-05",
+      "AUTH-06",
+      "AUTH-08",
+      "AUTH-09",
+      "AUTH-10",
+      "PRIV-01",
+      "PRIV-02",
+      "PRIV-05",
+      "STU-01",
+      "STU-02",
+      "AUD-03"
+    ]
+  },
+  "S2": {
+    "status": "done",
+    "reqs": [
+      "ACT-01",
+      "ACT-02",
+      "ACT-03",
+      "ACT-04",
+      "ACT-05",
+      "ACT-06",
+      "ACT-07",
+      "ACT-08",
+      "REG-01",
+      "REG-02",
+      "REG-03",
+      "REG-04",
+      "REG-05",
+      "STU-03",
+      "STU-04"
+    ]
+  },
+  "S3": {
+    "status": "done",
+    "reqs": [
+      "ATT-01",
+      "ATT-02",
+      "ATT-03",
+      "ATT-04",
+      "ATT-05",
+      "ATT-06"
+    ]
+  },
+  "S4": {
+    "status": "done",
+    "reqs": [
+      "CRT-01",
+      "CRT-02",
+      "CRT-03",
+      "CRT-04",
+      "CRT-05",
+      "CRT-06",
+      "CRT-07",
+      "CRT-08",
+      "CRT-09"
+    ]
+  },
+  "S5": {
+    "status": "done",
+    "reqs": [
+      "REC-01",
+      "REC-02",
+      "REC-03",
+      "REC-04",
+      "REC-05",
+      "RPT-01",
+      "RPT-02",
+      "RPT-03",
+      "RPT-04",
+      "RPT-05",
+      "NTF-01",
+      "AUD-05",
+      "PRIV-03"
+    ]
+  },
+  "S6": {
+    "status": "active",
+    "reqs": [
+      "OPS-02",
+      "UI-01",
+      "UI-02",
+      "UI-03",
+      "UI-04",
+      "UI-05"
+    ]
   }
 }

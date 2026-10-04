@@ -6,7 +6,12 @@ import { bearer, createUser, createStudent, createActivity } from './helpers/ind
 import { ownerPrisma } from './helpers/db.js';
 import { UserRole } from '@svc-rms/shared';
 
-const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
+const isCI = Boolean(process.env.CI && process.env.CI !== 'false');
+const hasDatabase = Boolean(process.env.DATABASE_URL);
+if (isCI && !hasDatabase) {
+  throw new Error('DATABASE_URL must be set in CI for database tests (skipping is not allowed)');
+}
+const describeDb = hasDatabase ? describe : describe.skip;
 
 describeDb('REQ-RPT-01 to 05 / REQ-REC-06', () => {
   let app: any;

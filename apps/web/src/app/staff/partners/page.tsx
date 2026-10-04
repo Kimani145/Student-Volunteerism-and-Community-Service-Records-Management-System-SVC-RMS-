@@ -34,7 +34,7 @@ export default function StaffPartnersPage() {
       setLoading(true);
       const data = await apiFetch<Partner[]>('/partners');
       setPartners(data || []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load partners', err);
     } finally {
       setLoading(false);
@@ -64,7 +64,7 @@ export default function StaffPartnersPage() {
       setEmail('');
       setPhone('');
       loadPartners();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setMessage({ type: 'error', text: err.detail || err.message || 'Failed to create partner' });
     } finally {
       setSaving(false);

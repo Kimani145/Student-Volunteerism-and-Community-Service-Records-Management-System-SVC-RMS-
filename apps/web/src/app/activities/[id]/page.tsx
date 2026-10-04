@@ -48,7 +48,7 @@ export default function ActivityDetailPage() {
       setLoading(true);
       const data = await apiFetch<ActivityDetail>(`/activities/${id}`);
       setActivity(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.message || 'Failed to load activity details');
     } finally {
       setLoading(false);
@@ -57,7 +57,7 @@ export default function ActivityDetailPage() {
 
   const checkRegistration = async () => {
     try {
-      const history = await apiFetch<any[]>('/students/me/history');
+      const history = await apiFetch<Record<string, unknown>[]>('/students/me/history');
       const found = history.find(
         (h) => h.activity_id === id && (h.status === 'REGISTERED' || h.status === 'ATTENDED')
       );
@@ -74,7 +74,7 @@ export default function ActivityDetailPage() {
       await apiFetch(`/activities/${id}/registrations`, { method: 'POST' });
       setIsRegistered(true);
       setActionMsg({ type: 'success', text: 'You have successfully registered for this activity!' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setActionMsg({
         type: 'error',
         text: err.detail || err.message || 'Registration failed. Check eligibility or schedule conflicts.',
@@ -92,7 +92,7 @@ export default function ActivityDetailPage() {
       await apiFetch(`/activities/${id}/registrations/me`, { method: 'DELETE' });
       setIsRegistered(false);
       setActionMsg({ type: 'success', text: 'Your registration has been cancelled.' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setActionMsg({
         type: 'error',
         text: err.detail || err.message || 'Cancellation failed. You cannot cancel after the start time.',

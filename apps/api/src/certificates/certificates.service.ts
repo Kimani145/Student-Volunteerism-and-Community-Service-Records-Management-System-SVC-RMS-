@@ -14,6 +14,18 @@ import { createHash } from 'crypto';
 export class CertificatesService {
   private readonly logger = new Logger(CertificatesService.name);
 
+  private get issuerName(): string {
+    const v = process.env.ISSUER_NAME;
+    if (!v) throw new Error('ISSUER_NAME is not configured');
+    return v;
+  }
+
+  private get storageRoot(): string {
+    const v = process.env.STORAGE_ROOT;
+    if (!v) throw new Error('STORAGE_ROOT is not configured');
+    return v;
+  }
+
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(PdfService) private readonly pdfService: PdfService,
@@ -76,7 +88,7 @@ export class CertificatesService {
           serviceDate: activity.start_at.toISOString().split('T')[0],
           hours: Number(p.hours_awarded),
           issuedAt: issuedAt.toISOString(),
-          issuer: process.env.ISSUER_NAME || 'TUK',
+          issuer: this.issuerName,
         };
 
         const signature = this.signingService.signCanonical(payload);
@@ -148,8 +160,7 @@ export class CertificatesService {
     }
 
     if (cert.pdf_storage_key && cert.pdf_sha256) {
-      const storageRoot = process.env.STORAGE_ROOT || '/tmp/svc-storage';
-      const p = path.join(storageRoot, cert.pdf_storage_key);
+      const p = path.join(this.storageRoot, cert.pdf_storage_key);
       try {
         const file = await fs.readFile(p);
         const hash = createHash('sha256').update(file).digest('hex');
@@ -189,13 +200,13 @@ export class CertificatesService {
       activityTitle: a.title,
       serviceDate: a.start_at.toISOString().split('T')[0] ?? '',
       hours: Number(p.hours_awarded),
-      issuer: process.env.ISSUER_NAME || 'TUK',
+      issuer: this.issuerName,
       issuedAt: cert.issued_at.toISOString(),
     });
 
     const sha256 = createHash('sha256').update(buffer).digest('hex');
     const storageKey = `certs/${cert.cvid}.pdf`;
-    const storagePath = path.join(process.env.STORAGE_ROOT || '/tmp/svc-storage', storageKey);
+    const storagePath = path.join(this.storageRoot, storageKey);
     await fs.mkdir(path.dirname(storagePath), { recursive: true });
     await fs.writeFile(storagePath, buffer);
 
@@ -253,7 +264,7 @@ export class CertificatesService {
         serviceDate: a.start_at.toISOString().split('T')[0],
         hours: Number(p.hours_awarded),
         issuedAt: issuedAt.toISOString(),
-        issuer: process.env.ISSUER_NAME || 'TUK',
+        issuer: this.issuerName,
       };
 
       const signature = this.signingService.signCanonical(payload);

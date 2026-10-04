@@ -23,7 +23,7 @@ export default function LoginPage() {
       const urlParams = new URLSearchParams(window.location.search);
       const redirect = urlParams.get('redirect') || '/';
       router.push(redirect);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.detail || err.message || 'Invalid email or password. Please try again.');
     } finally {
       setLoading(false);

@@ -349,4 +349,53 @@ describe('Registrations (e2e)', () => {
       expect(allowedRes.body.status).toBe('REGISTERED');
     });
   });
+
+  describe('REQ-STU-04', () => {
+    it('shows cumulative verified hours (sum of hours_awarded over ATTENDED)', async () => {
+      const u = await createUser({ role: UserRole.STUDENT });
+      const stu = await createStudent(u);
+      const token = await bearer({ id: u.id, role: UserRole.STUDENT });
+
+      const act1 = await createActivity({ organizer_id: organizerUser.id, status: 'COMPLETED' });
+      const act2 = await createActivity({ organizer_id: organizerUser.id, status: 'COMPLETED' });
+      const act3 = await createActivity({ organizer_id: organizerUser.id, status: 'COMPLETED' });
+
+      // Attended, awarded 8.0 hours
+      await ownerPrisma.participations.create({
+        data: {
+          activity_id: act1.id,
+          student_id: stu.id,
+          status: 'ATTENDED',
+          hours_awarded: 8.0,
+        }
+      });
+
+      // Attended, awarded 4.5 hours
+      await ownerPrisma.participations.create({
+        data: {
+          activity_id: act2.id,
+          student_id: stu.id,
+          status: 'ATTENDED',
+          hours_awarded: 4.5,
+        }
+      });
+
+      // Registered but not attended (should be ignored)
+      await ownerPrisma.participations.create({
+        data: {
+          activity_id: act3.id,
+          student_id: stu.id,
+          status: 'REGISTERED',
+          hours_awarded: 10.0,
+        }
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/students/me')
+        .set('Authorization', token)
+        .expect(200);
+
+      expect(res.body.cumulativeHours).toBe(12.5); // 8.0 + 4.5
+    });
+  });
 });

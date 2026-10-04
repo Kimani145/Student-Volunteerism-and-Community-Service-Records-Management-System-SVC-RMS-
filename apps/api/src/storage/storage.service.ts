@@ -13,9 +13,12 @@ import { ErrorCode } from '@svc-rms/shared';
 
 @Injectable()
 export class StorageService {
-  private readonly uploadDir = process.env.STORAGE_ROOT || path.join(process.cwd(), 'uploads');
+  private readonly uploadDir: string;
 
   constructor() {
+    const root = process.env.STORAGE_ROOT;
+    if (!root) throw new Error('STORAGE_ROOT is not configured');
+    this.uploadDir = root;
     if (!fs.existsSync(this.uploadDir)) {
       fs.mkdirSync(this.uploadDir, { recursive: true });
     }

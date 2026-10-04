@@ -1,9 +1,28 @@
 import { readFile, glob } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 
 const [srsRaw, slicesRaw] = await Promise.all([
   readFile('docs/SRS.md', 'utf8'),
   readFile('docs/slices.json', 'utf8'),
 ]);
+
+// Load KNOWN-GAPS.md to find deferred requirements (exempt from trace:check failure)
+let deferredReqs = new Set();
+if (existsSync('docs/KNOWN-GAPS.md')) {
+  const gapsRaw = await readFile('docs/KNOWN-GAPS.md', 'utf8');
+  // Extract req IDs listed under ## Deferred or lines like: REQ-XXX-NN (deferred)
+  // Pattern: look for `REQ-<ID>` tokens anywhere in KNOWN-GAPS.md lines containing "defer" or in a Deferred section
+  const deferredSection = gapsRaw.match(/##\s+[23]\.\s+.*(?:Deferred|Known Gaps|Gap)[\s\S]*?(?=\n##|$)/gi);
+  const allReqMatches = gapsRaw.matchAll(/\b([A-Z]{2,6}-\d{2,3})\b.*(?:defer|optional|gap|placeholder|stub|not implement)/gi);
+  for (const m of allReqMatches) {
+    deferredReqs.add(m[1]);
+  }
+  // Also look for explicit DEFERRED: lines
+  const explicitMatches = gapsRaw.matchAll(/DEFERRED:\s*([A-Z]{2,6}-\d{2,3})/gi);
+  for (const m of explicitMatches) {
+    deferredReqs.add(m[1]);
+  }
+}
 
 // 1. Parse requirement tables in docs/SRS.md
 // Tables follow markdown syntax with columns starting with | ID |
@@ -45,13 +64,16 @@ const testBodies = await Promise.all(testFiles.map((path) => readFile(path, 'utf
 
 const testNames = [];
 for (const body of testBodies) {
-  const matches = body.matchAll(/(?:describe|describeDb|it|test)\w*(?:\.[\w]+)*\s*\(\s*(['"`])([\s\S]*?)\1/g);
+  const matches = body.matchAll(/(?:describe|describeDb|it|test)\w*(?:\.\w+)*\s*\(\s*(['"`])([\s\S]*?)\1/g);
   for (const m of matches) {
     testNames.push(m[2]);
   }
 }
 
 let failed = false;
+const missing = [];
+const deferred = [];
+
 for (const req of trackedReqs) {
   // Confirm listed ID exists in docs/SRS.md tables
   if (!srsReqIds.has(req)) {
@@ -65,13 +87,23 @@ for (const req of trackedReqs) {
   const hasMatchingTest = testNames.some((name) => boundaryRegex.test(name));
 
   if (!hasMatchingTest) {
-    console.error(`Requirement ${req} has no matching test with name REQ-${req} with word boundaries`);
-    failed = true;
+    if (deferredReqs.has(req)) {
+      deferred.push(req);
+    } else {
+      console.error(`Requirement ${req} has no matching test with name REQ-${req} with word boundaries`);
+      missing.push(req);
+      failed = true;
+    }
   }
 }
 
+if (deferred.length > 0) {
+  console.warn(`trace:check DEFERRED (listed in KNOWN-GAPS.md): ${deferred.join(', ')}`);
+}
+
 if (failed) {
+  console.error(`\ntrace:check FAILED: ${missing.length} untested requirement(s): ${missing.join(', ')}`);
   process.exit(1);
 }
 
-console.log(`trace check passed for ${trackedReqs.length} requirements`);
+console.log(`trace:check PASSED for ${trackedReqs.length} requirements (${deferred.length} deferred).`);

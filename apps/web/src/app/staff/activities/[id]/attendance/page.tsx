@@ -63,7 +63,7 @@ export default function CoordinatorAttendancePage() {
       // 2. Fetch live roster
       const rosterRes = await apiFetch<Participant[]>(`/activities/${id}/roster`);
       setRoster(rosterRes || []);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Failed to fetch attendance token or roster', e);
     } finally {
       setLoading(false);
@@ -73,7 +73,7 @@ export default function CoordinatorAttendancePage() {
   useEffect(() => {
     if (!id) return;
     // Load activity details
-    apiFetch<any>(`/activities/${id}`)
+    apiFetch<Record<string, unknown>>(`/activities/${id}`)
       .then((act) => setActivityTitle(act.title))
       .catch(() => {});
 
@@ -105,7 +105,7 @@ export default function CoordinatorAttendancePage() {
         text: 'Activity marked as COMPLETED. Remaining participants marked ABSENT.',
       });
       fetchTokenAndRoster();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setStatusMsg({
         type: 'error',
         text: err.detail || err.message || 'Failed to complete activity',

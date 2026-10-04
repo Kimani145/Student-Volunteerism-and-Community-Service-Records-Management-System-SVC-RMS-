@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, Inject } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Inject } from '@nestjs/common';
 import { PartnersService } from './partners.service.js';
 import { Roles } from '../auth/roles.decorator.js';
 import { UserRole } from '@svc-rms/shared';
@@ -21,5 +21,10 @@ export class PartnersController {
   @Patch(':id')
   async updatePartner(@Param('id') id: string, @Body() body: any) {
     return this.svc.updatePartner(id, body);
+  }
+
+  @Delete(':id')
+  async deletePartner(@Param('id') id: string) {
+    return this.svc.deletePartner(id);
   }
 }

@@ -20,7 +20,7 @@ export default function RecordsPage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [activities, setActivities] = useState<any[]>([]);
+  const [activities, setActivities] = useState<Record<string, unknown>[]>([]);
   const [selectedActivityId, setSelectedActivityId] = useState('');
   const [uploadTitle, setUploadTitle] = useState('');
   const [recordClass, setRecordClass] = useState('ATTENDANCE_REGISTER');
@@ -39,7 +39,7 @@ export default function RecordsPage() {
       const url = searchTerm ? `/documents?q=${encodeURIComponent(searchTerm)}` : '/documents';
       const res = await apiFetch<{ data: DocumentRecord[]; total: number }>(url);
       setRecords(res.data || []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load records', err);
     } finally {
       setLoading(false);
@@ -48,7 +48,7 @@ export default function RecordsPage() {
 
   const loadActivities = async () => {
     try {
-      const res = await apiFetch<any>('/activities');
+      const res = await apiFetch<Record<string, unknown>>('/activities');
       const items = res.items || [];
       setActivities(items);
       if (items.length > 0) {
@@ -95,7 +95,7 @@ export default function RecordsPage() {
       setSelectedFile(null);
       setUploadTitle('');
       loadRecords();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setMessage({ type: 'error', text: err.message || 'Upload failed' });
     } finally {
       setUploading(false);

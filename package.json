@@ -13,6 +13,8 @@
     "db:seed": "node scripts/db-seed.mjs",
     "audit:verify": "node scripts/audit-verify.mjs",
     "trace:check": "node scripts/trace-check.mjs",
+    "setup:env": "node scripts/setup-env.mjs",
+    "e2e": "pnpm --filter @svc-rms/web e2e",
     "dev": "pnpm --filter @svc-rms/api dev & pnpm --filter @svc-rms/web dev"
   },
   "dependencies": {

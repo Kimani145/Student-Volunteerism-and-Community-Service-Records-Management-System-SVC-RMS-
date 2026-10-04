@@ -8,8 +8,7 @@ import { useAuth } from '@/lib/auth';
 type NavItem = { href: string; label: string };
 
 const publicNav: NavItem[] = [
-  { href: '/activities', label: 'Explore Activities' },
-  { href: '/verify/00000000', label: 'Verify Certificate' },
+  { href: '/verify', label: 'Verify Certificate' },
 ];
 
 const roleNav: Record<UserRole, NavItem[]> = {

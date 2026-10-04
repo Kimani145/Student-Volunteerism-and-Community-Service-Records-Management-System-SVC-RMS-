@@ -42,7 +42,7 @@ export default function RegisterPage() {
         }),
       });
       setSuccess(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.detail || err.message || 'Registration failed. Please verify your details.');
     } finally {
       setLoading(false);
