@@ -1,30 +1,38 @@
-import { useState, useEffect, useCallback } from 'react';
-import { apiFetch } from './api-client';
+import { useState, useCallback, useEffect } from 'react';
+import { ApiError, apiFetch } from './api-client';
 
-export function useApi<T>(path: string, options?: RequestInit) {
+export function useApi<T>(fetchFnOrUrl: (() => Promise<T>) | string) {
   const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<unknown>(null);
-  const [loading, setLoading] = useState(true);
-  const [retryCount, setRetryCount] = useState(0);
+  const [error, setError] = useState<ApiError | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  const fetchApi = useCallback(async () => {
+  const fetchFn = useCallback(() => {
+    if (typeof fetchFnOrUrl === 'string') {
+      return apiFetch<T>(fetchFnOrUrl);
+    }
+    return fetchFnOrUrl();
+  }, [fetchFnOrUrl]);
+
+  const execute = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch<T>(path, options);
-      setData(res);
-    } catch (err) {
-      setError(err);
+      const result = await fetchFn();
+      setData(result);
+    } catch (err: any) {
+      if (err instanceof ApiError) {
+        setError(err);
+      } else {
+        setError(new ApiError(500, 'UNKNOWN_ERROR', err?.message || 'An unexpected error occurred'));
+      }
     } finally {
       setLoading(false);
     }
-  }, [path, options, retryCount]);
+  }, [fetchFn]);
 
   useEffect(() => {
-    fetchApi();
-  }, [fetchApi]);
+    execute();
+  }, [execute]);
 
-  const retry = () => setRetryCount((c) => c + 1);
-
-  return { data, error, loading, retry, setData };
+  return { data, error, loading, retry: execute };
 }

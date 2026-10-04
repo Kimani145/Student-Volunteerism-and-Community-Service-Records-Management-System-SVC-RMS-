@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Param, Body, Req, Inject } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Body, Req, Inject, HttpCode, HttpStatus } from '@nestjs/common';
 import { AttendanceService } from './attendance.service.js';
 import { CheckInDto, BulkAttendanceDto } from './dto/attendance.dto.js';
 import { UserRole } from '@svc-rms/shared';
@@ -18,6 +18,7 @@ export class AttendanceController {
   }
 
   @Post(':id/check-in')
+  @HttpCode(HttpStatus.OK)
   @Roles(UserRole.STUDENT)
   async selfCheckIn(
     @Param('id') id: string,

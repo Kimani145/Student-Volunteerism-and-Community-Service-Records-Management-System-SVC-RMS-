@@ -47,4 +47,14 @@ for (const migration of migrations) {
   }
 }
 
+const appPassword = process.env.SVC_APP_PASSWORD;
+if (appPassword) {
+  try {
+    await client.query(`ALTER ROLE svc_app WITH PASSWORD '${appPassword}'`);
+    console.log('Set password for svc_app from SVC_APP_PASSWORD');
+  } catch (err) {
+    console.warn('Could not set svc_app password (role may not exist yet or no permission):', err.message);
+  }
+}
+
 await client.end();

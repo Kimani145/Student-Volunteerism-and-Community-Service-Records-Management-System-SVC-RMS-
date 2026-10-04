@@ -116,7 +116,7 @@ describe('Attendance (e2e)', () => {
         .post(`/api/v1/activities/${activityId}/check-in`)
         .set('Authorization', studentToken)
         .send({ token })
-        .expect(201);
+        .expect(200);
       
       expect(res.body.message).toBe('Checked in successfully');
 
@@ -135,7 +135,7 @@ describe('Attendance (e2e)', () => {
         .post(`/api/v1/activities/${activityId}/check-in`)
         .set('Authorization', studentToken)
         .send({ token })
-        .expect(201); // Created or Ok based on NestJS POST, 201 is default
+        .expect(200); // Created or Ok based on NestJS POST, 201 is default
       
       expect(replayRes.body.message).toBe('Already checked in');
     });
@@ -267,7 +267,7 @@ describe('Attendance (e2e)', () => {
         .post(`/api/v1/activities/${act.id}/check-in`)
         .set('Authorization', studentToken)
         .send({ token: tokenRes.body.token, lat: -4.0435, lng: 39.6682 })
-        .expect(201);
+        .expect(200);
 
       expect(checkInRes.body.message).toBe('Checked in successfully');
       expect(checkInRes.body.location_flag).toBe(true);
