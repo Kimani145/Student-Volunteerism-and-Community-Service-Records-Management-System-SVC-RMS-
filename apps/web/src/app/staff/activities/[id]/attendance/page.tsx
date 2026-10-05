@@ -6,8 +6,7 @@ import Link from 'next/link';
 import QRCode from 'qrcode';
 import { apiFetch } from '@/lib/api-client';
 import { RoleGate } from '@/lib/auth';
-import { Loading } from '@/components/ui/Loading';
-import { Empty } from '@/components/ui/Empty';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/api-states';
 
 interface AttendanceTokenResponse {
   token: string;
@@ -219,9 +218,9 @@ export default function CoordinatorAttendancePage() {
 
             <div className="overflow-x-auto flex-1">
               {loading ? (
-                <Loading message="Loading roster..." />
+                <LoadingState message="Loading roster..." />
               ) : roster.length === 0 ? (
-                <Empty message="No students registered yet." />
+                <EmptyState message="No students registered yet." />
               ) : (
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 text-xs uppercase font-semibold">

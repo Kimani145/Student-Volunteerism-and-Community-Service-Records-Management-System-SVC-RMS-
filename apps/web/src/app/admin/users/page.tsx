@@ -4,9 +4,7 @@ import { useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useApi } from '@/lib/use-api';
 import { RoleGate, useAuth } from '@/lib/auth';
-import { Loading } from '@/components/ui/Loading';
-import { Empty } from '@/components/ui/Empty';
-import { ErrorState } from '@/components/ui/ErrorState';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/api-states';
 
 interface UserItem {
   id: string;
@@ -97,11 +95,11 @@ export default function UsersAdminPage() {
         )}
 
         {loading ? (
-          <Loading message="Loading user directory..." />
+          <LoadingState message="Loading user directory..." />
         ) : error ? (
           <ErrorState error={error} onRetry={retry} />
         ) : users.length === 0 ? (
-          <Empty message="No system users found." actionText="Create New User" onAction={() => setShowCreateModal(true)} />
+          <EmptyState title="No system users found." message="Create a new user to get started." />
         ) : (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">

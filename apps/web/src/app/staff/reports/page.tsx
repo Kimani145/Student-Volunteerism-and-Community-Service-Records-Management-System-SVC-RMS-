@@ -4,9 +4,7 @@ import { useState } from 'react';
 import { getAccessToken } from '@/lib/api-client';
 import { useApi } from '@/lib/use-api';
 import { RoleGate } from '@/lib/auth';
-import { Loading } from '@/components/ui/Loading';
-import { Empty } from '@/components/ui/Empty';
-import { ErrorState } from '@/components/ui/ErrorState';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/api-states';
 
 interface ActivityReportRow {
   title: string;
@@ -68,11 +66,11 @@ export default function StaffReportsPage() {
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           {loading ? (
-            <Loading message="Loading reports..." />
+            <LoadingState message="Loading reports..." />
           ) : error ? (
             <ErrorState error={error} onRetry={retry} />
           ) : activities.length === 0 ? (
-            <Empty message="No activity data recorded yet." />
+            <EmptyState message="No activity data recorded yet." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">

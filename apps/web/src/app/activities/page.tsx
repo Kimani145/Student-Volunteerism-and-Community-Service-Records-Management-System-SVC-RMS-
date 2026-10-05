@@ -5,9 +5,7 @@ import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { useApi } from '@/lib/use-api';
 import { useAuth } from '@/lib/auth';
-import { Loading } from '@/components/ui/Loading';
-import { Empty } from '@/components/ui/Empty';
-import { ErrorState } from '@/components/ui/ErrorState';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/api-states';
 
 interface Activity {
   id: string;
@@ -95,11 +93,11 @@ export default function ActivitiesPage() {
 
       {/* Activity Grid */}
       {loading ? (
-        <Loading message="Loading activities..." />
+        <LoadingState message="Loading activities..." />
       ) : error ? (
         <ErrorState error={error} onRetry={retry} />
       ) : activities.length === 0 ? (
-        <Empty message="No activities found." actionText="Clear Filters" onAction={() => { setSearch(''); setSelectedType(''); }} />
+        <EmptyState message="No activities found." actionText="Clear Filters" onAction={() => { setSearch(''); setSelectedType(''); }} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {activities.map((act) => {

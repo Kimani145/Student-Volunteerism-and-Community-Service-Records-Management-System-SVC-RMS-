@@ -4,9 +4,7 @@ import { useState, useEffect } from 'react';
 import { apiFetch, getAccessToken } from '@/lib/api-client';
 import { useApi } from '@/lib/use-api';
 import { RoleGate } from '@/lib/auth';
-import { Loading } from '@/components/ui/Loading';
-import { Empty } from '@/components/ui/Empty';
-import { ErrorState } from '@/components/ui/ErrorState';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/api-states';
 
 interface DocumentRecord {
   id: string;
@@ -143,11 +141,11 @@ export default function RecordsPage() {
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           {loading ? (
-            <Loading message="Loading records..." />
+            <LoadingState message="Loading records..." />
           ) : error ? (
             <ErrorState error={error} onRetry={retry} />
           ) : records.length === 0 ? (
-            <Empty message="No records found." />
+            <EmptyState message="No records found." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">

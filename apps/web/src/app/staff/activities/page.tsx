@@ -5,9 +5,7 @@ import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { useApi } from '@/lib/use-api';
 import { useAuth, RoleGate } from '@/lib/auth';
-import { Loading } from '@/components/ui/Loading';
-import { Empty } from '@/components/ui/Empty';
-import { ErrorState } from '@/components/ui/ErrorState';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/api-states';
 
 interface StaffActivity {
   id: string;
@@ -144,11 +142,11 @@ export default function StaffActivitiesPage() {
         {/* Activities Table */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           {loading ? (
-            <Loading message="Loading activities..." />
+            <LoadingState message="Loading activities..." />
           ) : error ? (
             <ErrorState error={error} onRetry={retry} />
           ) : activities.length === 0 ? (
-            <Empty message="No activities found in this view." />
+            <EmptyState title="No activities found" message="No activities found in this view." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">

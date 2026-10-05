@@ -5,9 +5,7 @@ import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { useApi } from '@/lib/use-api';
 import { RoleGate } from '@/lib/auth';
-import { Loading } from '@/components/ui/Loading';
-import { Empty } from '@/components/ui/Empty';
-import { ErrorState } from '@/components/ui/ErrorState';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/api-states';
 
 interface DashboardRow {
   month: string;
@@ -80,11 +78,11 @@ export default function ManagementDashboardPage() {
           </div>
 
           {loading ? (
-            <Loading message="Loading metrics..." />
+            <LoadingState message="Loading metrics..." />
           ) : error ? (
             <ErrorState error={error} onRetry={retry} />
           ) : data.length === 0 ? (
-            <Empty message="No aggregation data available yet." />
+            <EmptyState message="No aggregation data available yet." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">

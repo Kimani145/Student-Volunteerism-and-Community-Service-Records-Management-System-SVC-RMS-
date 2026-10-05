@@ -5,9 +5,7 @@ import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { useApi } from '@/lib/use-api';
 import { useAuth, RoleGate } from '@/lib/auth';
-import { Loading } from '@/components/ui/Loading';
-import { Empty } from '@/components/ui/Empty';
-import { ErrorState } from '@/components/ui/ErrorState';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/api-states';
 
 interface ParticipationItem {
   id: string;
@@ -34,7 +32,7 @@ export default function MyHistoryPage() {
   const { data: rawHistory, error, loading, retry } = useApi<ParticipationItem[]>('/students/me/history');
   const history = rawHistory || [];
 
-  if (authLoading) return <Loading message="Loading profile..." />;
+  if (authLoading) return <LoadingState message="Loading profile..." />;
 
   const attendedItems = history.filter((h) => h.status === 'ATTENDED');
   const totalHours = attendedItems.reduce((sum, h) => sum + (h.activities?.service_hours || 0), 0);
@@ -83,14 +81,13 @@ export default function MyHistoryPage() {
         </div>
 
         {loading ? (
-          <Loading message="Loading participation records..." />
+          <LoadingState message="Loading participation records..." />
         ) : error ? (
           <ErrorState error={error} onRetry={retry} />
         ) : history.length === 0 ? (
-          <Empty 
+          <EmptyState 
+            title="No history found"
             message="Discover student-led initiatives and start giving back to the community." 
-            actionText="Browse Activities" 
-            actionHref="/activities" 
           />
         ) : (
           <div className="overflow-x-auto">

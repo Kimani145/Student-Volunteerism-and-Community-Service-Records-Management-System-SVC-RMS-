@@ -4,9 +4,7 @@ import { useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useApi } from '@/lib/use-api';
 import { RoleGate } from '@/lib/auth';
-import { Loading } from '@/components/ui/Loading';
-import { Empty } from '@/components/ui/Empty';
-import { ErrorState } from '@/components/ui/ErrorState';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/api-states';
 
 interface Partner {
   id: string;
@@ -91,11 +89,11 @@ export default function StaffPartnersPage() {
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           {loading ? (
-            <Loading message="Loading partners..." />
+            <LoadingState message="Loading partners..." />
           ) : error ? (
             <ErrorState error={error} onRetry={retry} />
           ) : partners.length === 0 ? (
-            <Empty message="No community partners registered yet." />
+            <EmptyState message="No community partners registered yet." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">

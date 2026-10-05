@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: svc-rms-api
+    env: node
+    rootDir: apps/api
+    buildCommand: pnpm install --filter @svc-rms/api... && pnpm --filter @svc-rms/api build
+    startCommand: pnpm --filter @svc-rms/api start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: REFRESH_TOKEN_PEPPER
+        sync: false
+      - key: QR_MASTER_SECRET
+        sync: false
+      - key: CERT_SIGNING_PRIVATE_KEY
+        sync: false
+      - key: CERT_SIGNING_KEY_ID
+        sync: false
+      - key: PUBLIC_WEB_ORIGIN
+        sync: false
+      - key: ALLOWED_STUDENT_EMAIL_DOMAINS
+        value: example.test
+      - key: SMTP_URL
+        sync: false
