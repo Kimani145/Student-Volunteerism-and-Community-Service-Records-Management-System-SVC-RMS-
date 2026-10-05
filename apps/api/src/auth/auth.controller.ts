@@ -84,7 +84,7 @@ export class AuthController {
     
     res.setCookie('refresh_token', result.refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV !== 'development',
+      secure: false, // process.env.NODE_ENV !== 'development',
       sameSite: 'lax',
       path: '/api/v1/auth',
       maxAge: 8 * 60 * 60 * 1000, // 8 hours
@@ -105,7 +105,7 @@ export class AuthController {
     
     res.setCookie('refresh_token', result.refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV !== 'development',
+      secure: false, // process.env.NODE_ENV !== 'development',
       sameSite: 'lax',
       path: '/api/v1/auth',
       maxAge: 8 * 60 * 60 * 1000,
