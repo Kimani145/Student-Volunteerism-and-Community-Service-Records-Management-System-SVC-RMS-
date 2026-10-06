@@ -6,13 +6,23 @@
 corepack enable
 corepack prepare pnpm@10.14.0 --activate
 pnpm install
-cp .env.example .env
+pnpm setup:env                     # creates .env with generated dev secrets and a signing key (never overwrites)
 docker compose -f ops/docker-compose.yml up -d
-pnpm db:migrate
-./ops/db-init.sh
-pnpm db:seed
-pnpm dev
+pnpm dev:reset                     # creates the svc_dev database, migrates, creates the app role, seeds demo accounts
+pnpm dev                           # API on :3001, web on :3000
 ```
+
+Demo accounts (synthetic, development only; password `Password123!`): `admin@example.test`, `staff.approver@example.test`,
+`staff.member@example.test`, `management@example.test`, `student1@example.test` ... `student50@example.test`.
+Type emails in lowercase. Five wrong passwords lock an account for 15 minutes (`pnpm db:seed` unlocks all demo accounts).
+
+### Two databases, on purpose
+- **`svc_dev`** holds your demo data. `pnpm dev:reset` rebuilds it.
+- **`svc_test`** belongs to the test suite and is **wiped on every `pnpm test` run**. The test helpers refuse to run against any database whose
+  name does not end in `_test`. Never point `.env` at `svc_test`, or your demo accounts will vanish and login will say "Invalid credentials".
+
+### Hosting
+See `docs/DEPLOY.md` (Render for the API, Vercel for the web app, `pnpm db:bootstrap` for the first admin).
 
 ## Database Roles & Least Privilege
 

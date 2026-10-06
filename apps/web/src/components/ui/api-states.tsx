@@ -10,11 +10,30 @@ export function LoadingState({ message = 'Loading...' }: { message?: string }) {
   );
 }
 
-export function EmptyState({ title = 'No data found', message = 'There are no items to display at this time.' }: { title?: string; message?: string }) {
+export function EmptyState({
+  title = 'No data found',
+  message = 'There are no items to display at this time.',
+  actionText,
+  onAction,
+}: {
+  title?: string;
+  message?: string;
+  actionText?: string;
+  onAction?: () => void;
+}) {
   return (
     <div className="flex flex-col items-center justify-center p-12 text-center border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
       <h3 className="mt-2 text-sm font-semibold text-gray-900">{title}</h3>
       <p className="mt-1 text-sm text-gray-500">{message}</p>
+      {actionText && onAction && (
+        <button
+          type="button"
+          onClick={onAction}
+          className="mt-4 inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+        >
+          {actionText}
+        </button>
+      )}
     </div>
   );
 }

@@ -2,6 +2,14 @@ import { generateKeyPairSync } from 'crypto';
 
 let runtimeTestEdKey: string | null = null;
 
+export function databaseName(url: string): string {
+  try {
+    return decodeURIComponent(new URL(url).pathname.slice(1));
+  } catch {
+    return '';
+  }
+}
+
 export function applyTestEnv(): void {
   (BigInt.prototype as any).toJSON = function () {
     return Number(this);
@@ -9,8 +17,18 @@ export function applyTestEnv(): void {
   process.env.NODE_ENV = 'test';
   const isCI = Boolean(process.env.CI && process.env.CI !== 'false');
   if (!isCI) {
-    process.env.DATABASE_URL_MIGRATE ??= 'postgresql://postgres:postgres@127.0.0.1:5433/svc_test';
-    process.env.DATABASE_URL ??= 'postgresql://svc_app:svc_app_secret@127.0.0.1:5433/svc_test';
+    // Tests wipe tables, so they may ONLY use a database whose name ends in "_test".
+    // A dev DATABASE_URL (for example svc_dev) in the shell is ignored; use TEST_DATABASE_URL* to override.
+    const pick = (candidate: string | undefined, fallback: string): string =>
+      candidate && databaseName(candidate).endsWith('_test') ? candidate : fallback;
+    process.env.DATABASE_URL_MIGRATE = pick(
+      process.env.TEST_DATABASE_URL_MIGRATE ?? process.env.DATABASE_URL_MIGRATE,
+      'postgresql://postgres:postgres@127.0.0.1:5433/svc_test',
+    );
+    process.env.DATABASE_URL = pick(
+      process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL,
+      'postgresql://svc_app:svc_app_secret@127.0.0.1:5433/svc_test',
+    );
     process.env.SVC_APP_PASSWORD ??= 'svc_app_secret';
   }
   process.env.JWT_ACCESS_SECRET = '12345678901234567890123456789012';

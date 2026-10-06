@@ -17,6 +17,16 @@ const PRESERVED_TABLES = new Set([
 ]);
 
 export async function clearDatabase(): Promise<void> {
+  const name = (() => {
+    try {
+      return decodeURIComponent(new URL(url).pathname.slice(1));
+    } catch {
+      return '';
+    }
+  })();
+  if (!name.endsWith('_test')) {
+    throw new Error(`Refusing to truncate database "${name}": test databases must end with _test (dev data lives in svc_dev).`);
+  }
   const tables = await ownerPrisma.$queryRaw<Array<{ tablename: string }>>`
     SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename != '_prisma_migrations';
   `;

@@ -10,7 +10,7 @@ import { Throttle } from '@nestjs/throttler';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 
 const registerSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().toLowerCase().email(),
   password: z.string().min(12),
   regNumber: z.string().min(3),
   fullName: z.string().min(2),
@@ -27,13 +27,13 @@ const verifyEmailSchema = z.object({
 type VerifyEmailBody = z.infer<typeof verifyEmailSchema>;
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().toLowerCase().email(),
   password: z.string(),
 }).strict();
 type LoginBody = z.infer<typeof loginSchema>;
 
 const forgotPasswordSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().toLowerCase().email(),
 }).strict();
 type ForgotPasswordBody = z.infer<typeof forgotPasswordSchema>;
 

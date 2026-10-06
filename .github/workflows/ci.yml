@@ -52,6 +52,10 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Shared package compiled JS is in sync with TypeScript
+        run: |
+          pnpm --filter @svc-rms/shared build
+          git diff --exit-code packages/shared/src
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm --filter @svc-rms/api exec prisma validate
