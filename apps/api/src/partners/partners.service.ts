@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
@@ -32,5 +32,19 @@ export class PartnersService {
         contact_person: data.contactPerson ?? data.contact_person,
       }
     });
+  }
+
+  async deletePartner(id: string) {
+    const partner = await this.prisma.community_partners.findUnique({ where: { id } });
+    if (!partner) throw new NotFoundException();
+    
+    try {
+      await this.prisma.community_partners.delete({ where: { id } });
+    } catch (e: any) {
+      if (e.code === 'P2003') {
+        throw new ConflictException('Partner is referenced by an activity');
+      }
+      throw e;
+    }
   }
 }

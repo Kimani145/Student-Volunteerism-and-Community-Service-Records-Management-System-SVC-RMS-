@@ -78,9 +78,9 @@ export async function createStudent(user: any, overrides: any = {}) {
 
 export async function createActivity(overrides: any = {}) {
   const now = Date.now();
-  const start_at =
-    overrides.start_at ||
-    (overrides.status === 'IN_PROGRESS'
+  const start_at = overrides.start_at
+    ? new Date(overrides.start_at)
+    : (overrides.status === 'IN_PROGRESS'
       ? new Date(now - 3600000)
       : new Date(now + 86400000));
   const end_at =

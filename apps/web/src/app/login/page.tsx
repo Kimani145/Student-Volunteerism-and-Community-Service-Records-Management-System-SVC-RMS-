@@ -23,8 +23,9 @@ export default function LoginPage() {
       const urlParams = new URLSearchParams(window.location.search);
       const redirect = urlParams.get('redirect') || '/';
       router.push(redirect);
-    } catch (err: any) {
-      setError(err.detail || err.message || 'Invalid email or password. Please try again.');
+    } catch (err: unknown) {
+      const apiErr = err as { detail?: string; message?: string };
+      setError(apiErr.detail || apiErr.message || 'Invalid email or password. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -104,7 +105,7 @@ export default function LoginPage() {
 
         {/* Demo Fast-Fill Buttons */}
         <div className="mt-8 pt-6 border-t border-slate-100">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2 text-center">
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2 text-center">
             Demo Quick Login
           </span>
           <div className="grid grid-cols-3 gap-2">

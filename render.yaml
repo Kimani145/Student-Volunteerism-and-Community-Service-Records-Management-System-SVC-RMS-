@@ -1,0 +1,70 @@
+# Render blueprint for the SVC-RMS API (apps/api). The web app goes on Vercel (see steps in chat).
+# Replaces the previous render.yaml. Differences: no rootDir (workspace commands run from the repo root),
+# Node 24, builds the shared package, health check, ALL env vars the API validates at boot, optional disk.
+services:
+  - type: web
+    name: svc-rms-api
+    runtime: node
+    region: frankfurt            # closest Render region to Nairobi; data is stored OUTSIDE Kenya (see SRS A-05)
+    plan: starter                # free plan sleeps after idle and has no disk; see notes
+    buildCommand: >-
+      corepack enable &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @svc-rms/shared exec tsc &&
+      pnpm --filter @svc-rms/api build
+    startCommand: pnpm --filter @svc-rms/api start
+    healthCheckPath: /api/v1/healthz
+    # Uploads (records) and the certificate PDF cache are written to STORAGE_ROOT.
+    # Without a disk they are LOST on every deploy/restart. Disks need a paid plan.
+    disk:
+      name: svc-data
+      mountPath: /var/data
+      sizeGB: 5
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "24"
+      - key: LOG_LEVEL
+        value: info
+      # --- database (the least-privilege svc_app role, NOT the owner; see steps) ---
+      - key: DATABASE_URL
+        sync: false
+      # --- secrets: Render generates strong random values ---
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: REFRESH_TOKEN_PEPPER
+        generateValue: true
+      - key: QR_MASTER_SECRET
+        generateValue: true
+      # --- certificate signing key: generate locally with `node apps/api/src/scripts/gen-cert-key.mjs`, paste here ---
+      - key: CERT_SIGNING_PRIVATE_KEY
+        sync: false
+      - key: CERT_SIGNING_KEY_ID
+        sync: false
+      # --- public URL of the Vercel site (used in certificate QR codes and emails) ---
+      - key: PUBLIC_WEB_ORIGIN
+        sync: false
+      # --- registration + email ---
+      - key: ALLOWED_STUDENT_EMAIL_DOMAINS   # comma-separated REAL TUK student email domain(s); students cannot register without it
+        sync: false
+      - key: SMTP_URL                        # required: email verification and password reset depend on it
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      # --- storage and uploads ---
+      - key: STORAGE_ROOT
+        value: /var/data
+      - key: MAX_UPLOAD_BYTES
+        value: "10485760"
+      # --- certificate wording (placeholders until DCOLAP supplies the real values) ---
+      - key: ISSUER_NAME
+        value: Directorate of Community Outreach, Linkages and Partnerships, Technical University of Kenya
+      - key: SIGNATORY_1_NAME
+        sync: false
+      - key: SIGNATORY_1_TITLE
+        sync: false
+      - key: SIGNATORY_2_NAME
+        sync: false
+      - key: SIGNATORY_2_TITLE
+        sync: false

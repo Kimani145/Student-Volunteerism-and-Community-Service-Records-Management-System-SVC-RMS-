@@ -303,4 +303,62 @@ describe('Activities (e2e)', () => {
       expect(searchRes.body.page).toBe(1);
     });
   });
+
+  describe('REQ-ACT-06', () => {
+    it('creates, updates and lists community partners, and prevents deletion if referenced', async () => {
+      const http = app.getHttpServer();
+      // Create partner
+      const createRes = await request(http)
+        .post('/api/v1/partners')
+        .set('Authorization', organizerToken)
+        .send({
+          name: 'Test Partner',
+          email: 'test@partner.com',
+          phone: '1234567890',
+          contactPerson: 'John Doe',
+        })
+        .expect(201);
+        
+      const partnerId = createRes.body.id;
+
+      // List partners
+      const listRes = await request(http)
+        .get('/api/v1/partners')
+        .set('Authorization', organizerToken)
+        .expect(200);
+      
+      expect(listRes.body.some((p: any) => p.id === partnerId)).toBe(true);
+
+      // Update partner
+      await request(http)
+        .patch(`/api/v1/partners/${partnerId}`)
+        .set('Authorization', organizerToken)
+        .send({ name: 'Updated Partner' })
+        .expect(200);
+
+      // Create activity referencing this partner
+      await request(http)
+        .post('/api/v1/activities')
+        .set('Authorization', organizerToken)
+        .send({
+          title: 'Partner Activity',
+          typeId: 1, // TREE_PLANTING or any seeded type
+          description: 'Desc',
+          venue: 'Venue',
+          startAt: new Date(Date.now() + 86400000).toISOString(),
+          endAt: new Date(Date.now() + 90000000).toISOString(),
+          registrationClosesAt: new Date(Date.now() + 80000000).toISOString(),
+          capacity: 10,
+          serviceHours: 2,
+          partnerId: partnerId,
+        })
+        .expect(201);
+
+      // Delete partner should fail
+      await request(http)
+        .delete(`/api/v1/partners/${partnerId}`)
+        .set('Authorization', organizerToken)
+        .expect(409);
+    });
+  });
 });

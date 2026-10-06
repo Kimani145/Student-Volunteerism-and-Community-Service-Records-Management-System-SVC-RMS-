@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
-import { useAuth } from '@/lib/auth';
+import { useApi } from '@/lib/use-api';
+import { useAuth, RoleGate } from '@/lib/auth';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/api-states';
 
 interface ParticipationItem {
   id: string;
@@ -27,46 +29,17 @@ interface ParticipationItem {
 
 export default function MyHistoryPage() {
   const { user, loading: authLoading } = useAuth();
-  const [history, setHistory] = useState<ParticipationItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: rawHistory, error, loading, retry } = useApi<ParticipationItem[]>('/students/me/history');
+  const history = rawHistory || [];
 
-  useEffect(() => {
-    if (user?.role === 'STUDENT') {
-      loadHistory();
-    }
-  }, [user]);
-
-  const loadHistory = async () => {
-    try {
-      setLoading(true);
-      const data = await apiFetch<ParticipationItem[]>('/students/me/history');
-      setHistory(data || []);
-    } catch (err) {
-      console.error('Failed to load history', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (authLoading) return <div className="p-8 text-center text-slate-500">Loading profile...</div>;
-
-  if (!user || user.role !== 'STUDENT') {
-    return (
-      <div className="max-w-md mx-auto py-16 px-4 text-center">
-        <h2 className="text-xl font-bold text-slate-900 mb-2">Student Access Only</h2>
-        <p className="text-slate-500 text-sm mb-6">Please sign in with a registered student account to view participation history.</p>
-        <Link href="/login" className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium">
-          Sign In
-        </Link>
-      </div>
-    );
-  }
+  if (authLoading) return <LoadingState message="Loading profile..." />;
 
   const attendedItems = history.filter((h) => h.status === 'ATTENDED');
   const totalHours = attendedItems.reduce((sum, h) => sum + (h.activities?.service_hours || 0), 0);
 
   return (
-    <div className="max-w-5xl mx-auto py-8 px-4 sm:px-6">
+    <RoleGate roles={['STUDENT']}>
+      <div className="max-w-5xl mx-auto py-8 px-4 sm:px-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Volunteer History</h1>
@@ -108,16 +81,14 @@ export default function MyHistoryPage() {
         </div>
 
         {loading ? (
-          <div className="p-8 text-center text-slate-500">Loading participation records...</div>
+          <LoadingState message="Loading participation records..." />
+        ) : error ? (
+          <ErrorState error={error} onRetry={retry} />
         ) : history.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="text-4xl mb-3">🌱</div>
-            <h3 className="font-bold text-slate-800 text-base">No volunteering records yet</h3>
-            <p className="text-slate-500 text-sm mt-1 mb-6">Discover student-led initiatives and start giving back to the community.</p>
-            <Link href="/activities" className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium">
-              Browse Activities
-            </Link>
-          </div>
+          <EmptyState 
+            title="No history found"
+            message="Discover student-led initiatives and start giving back to the community." 
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -192,5 +163,6 @@ export default function MyHistoryPage() {
         )}
       </div>
     </div>
+    </RoleGate>
   );
 }

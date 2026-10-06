@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 
-if (process.loadEnvFile) {
+if (process.env.NODE_ENV !== 'production' && process.loadEnvFile) {
   try {
     process.loadEnvFile();
   } catch {}
@@ -84,7 +84,8 @@ try {
     await client.query(
       `INSERT INTO users (id, email, password_hash, role, can_approve, email_verified_at)
        VALUES ($1, $2, '$argon2id$v=19$m=65536,p=4,t=3$qewnyqqv9ZdcTyVib66wUA$t+9+oxU68IVz+kwTa4Bg318aQuivznJ/3wK6vy8pKw8', $3::user_role, $4, NOW())
-       ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, email_verified_at = EXCLUDED.email_verified_at`,
+       ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, email_verified_at = EXCLUDED.email_verified_at,
+         failed_login_count = 0, locked_until = NULL, is_active = TRUE`,
       [userId, user.email, user.role, user.canApprove],
     );
 
@@ -103,6 +104,8 @@ try {
 
   await client.query('COMMIT');
   console.log('seed complete');
+  console.log('\nDEV accounts (synthetic, local development only). Password for all: Password123!');
+  console.log('  admin@example.test | staff.approver@example.test | staff.member@example.test | management@example.test | student1..student50@example.test');
 } catch (error) {
   await client.query('ROLLBACK');
   throw error;

@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { apiFetch, getAccessToken } from '@/lib/api-client';
+import { useApi } from '@/lib/use-api';
 import { RoleGate } from '@/lib/auth';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/api-states';
 
 interface DocumentRecord {
   id: string;
@@ -16,11 +18,13 @@ interface DocumentRecord {
 }
 
 export default function RecordsPage() {
-  const [records, setRecords] = useState<DocumentRecord[]>([]);
-  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const [searchUrl, setSearchUrl] = useState('/documents');
+  const { data: rawData, error, loading, retry } = useApi<{ data: DocumentRecord[]; total: number }>(searchUrl);
+  const records = rawData?.data || [];
+  
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [activities, setActivities] = useState<any[]>([]);
+  const [activities, setActivities] = useState<{ id: string; title: string }[]>([]);
   const [selectedActivityId, setSelectedActivityId] = useState('');
   const [uploadTitle, setUploadTitle] = useState('');
   const [recordClass, setRecordClass] = useState('ATTENDANCE_REGISTER');
@@ -29,26 +33,12 @@ export default function RecordsPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
-    loadRecords();
     loadActivities();
   }, []);
 
-  const loadRecords = async (searchTerm = '') => {
-    try {
-      setLoading(true);
-      const url = searchTerm ? `/documents?q=${encodeURIComponent(searchTerm)}` : '/documents';
-      const res = await apiFetch<{ data: DocumentRecord[]; total: number }>(url);
-      setRecords(res.data || []);
-    } catch (err: any) {
-      console.error('Failed to load records', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const loadActivities = async () => {
     try {
-      const res = await apiFetch<any>('/activities');
+      const res = await apiFetch<{ items: { id: string; title: string }[] }>('/activities');
       const items = res.items || [];
       setActivities(items);
       if (items.length > 0) {
@@ -59,7 +49,8 @@ export default function RecordsPage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    loadRecords(query);
+    const url = query ? `/documents?q=${encodeURIComponent(query)}` : '/documents';
+    setSearchUrl(url);
   };
 
   const handleUpload = async (e: React.FormEvent) => {
@@ -94,9 +85,10 @@ export default function RecordsPage() {
       setMessage({ type: 'success', text: 'Document uploaded and archived successfully!' });
       setSelectedFile(null);
       setUploadTitle('');
-      loadRecords();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Upload failed' });
+      retry();
+    } catch (err: unknown) {
+      const apiErr = err as any;
+      setMessage({ type: 'error', text: apiErr.message || 'Upload failed' });
     } finally {
       setUploading(false);
     }
@@ -149,9 +141,11 @@ export default function RecordsPage() {
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           {loading ? (
-            <div className="p-8 text-center text-slate-500">Loading records...</div>
+            <LoadingState message="Loading records..." />
+          ) : error ? (
+            <ErrorState error={error} onRetry={retry} />
           ) : records.length === 0 ? (
-            <div className="p-12 text-center text-slate-500">No records found.</div>
+            <EmptyState message="No records found." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">

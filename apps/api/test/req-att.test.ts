@@ -116,7 +116,7 @@ describe('Attendance (e2e)', () => {
         .post(`/api/v1/activities/${activityId}/check-in`)
         .set('Authorization', studentToken)
         .send({ token })
-        .expect(201);
+        .expect(200);
       
       expect(res.body.message).toBe('Checked in successfully');
 
@@ -135,7 +135,7 @@ describe('Attendance (e2e)', () => {
         .post(`/api/v1/activities/${activityId}/check-in`)
         .set('Authorization', studentToken)
         .send({ token })
-        .expect(201); // Created or Ok based on NestJS POST, 201 is default
+        .expect(200); // Created or Ok based on NestJS POST, 201 is default
       
       expect(replayRes.body.message).toBe('Already checked in');
     });
@@ -224,6 +224,58 @@ describe('Attendance (e2e)', () => {
       });
       expect(updatedPart?.status).toBe('ABSENT');
       expect(Number(updatedPart?.hours_awarded)).toBe(0);
+    });
+  });
+
+
+  describe('REQ-ATT-05', () => {
+    it('sets location_flag=true if check-in is outside geofence', async () => {
+      const http = app.getHttpServer();
+      const organizerUser = await createUser({ role: UserRole.STAFF });
+      const organizerToken = await bearer({ id: organizerUser.id, role: UserRole.STAFF });
+      // Create activity in Nairobi
+      const act = await createActivity({
+        organizer_id: organizerUser.id,
+        status: 'IN_PROGRESS',
+        venue_lat: -1.2921,
+        venue_lng: 36.8219,
+        geofence_radius_m: 500, // 500 meters
+        start_at: new Date(Date.now() - 1000 * 60).toISOString(),
+        end_at: new Date(Date.now() + 1000 * 60 * 60).toISOString(),
+      });
+
+      // Register student
+      const u = await createUser({ role: UserRole.STUDENT });
+      const stu = await createStudent(u);
+      const studentToken = await bearer({ id: u.id, role: UserRole.STUDENT });
+      await ownerPrisma.participations.create({
+        data: {
+          activity_id: act.id,
+          student_id: stu.id,
+          status: 'REGISTERED',
+        },
+      });
+
+      // Get check-in token as organizer
+      const tokenRes = await request(http)
+        .get(`/api/v1/activities/${act.id}/check-in-token`)
+        .set('Authorization', organizerToken)
+        .expect(200);
+
+      // Check-in with Mombasa coordinates (far away)
+      const checkInRes = await request(http)
+        .post(`/api/v1/activities/${act.id}/check-in`)
+        .set('Authorization', studentToken)
+        .send({ token: tokenRes.body.token, lat: -4.0435, lng: 39.6682 })
+        .expect(200);
+
+      expect(checkInRes.body.message).toBe('Checked in successfully');
+      expect(checkInRes.body.location_flag).toBe(true);
+
+      const dbAtt = await ownerPrisma.attendances.findFirst({
+        where: { participations: { activity_id: act.id, student_id: stu.id } }
+      });
+      expect(dbAtt?.location_flag).toBe(true);
     });
   });
 

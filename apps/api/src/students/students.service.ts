@@ -9,6 +9,16 @@ export class StudentsService {
   async getStudent(id: string) {
     const student = await this.prisma.student.findUnique({ where: { id } });
     if (!student) throw new NotFoundException('Student not found');
+    
+    const participations = await this.prisma.participations.findMany({
+      where: {
+        student_id: id,
+        status: 'ATTENDED',
+      },
+    });
+    
+    const cumulativeHours = participations.reduce((sum, p) => sum + Number(p.hours_awarded || 0), 0);
+
     return {
       id: student.id,
       regNumber: student.reg_number,
@@ -18,6 +28,7 @@ export class StudentsService {
       yearOfStudy: student.year_of_study,
       phone: student.phone,
       gender: student.gender,
+      cumulativeHours,
     };
   }
 

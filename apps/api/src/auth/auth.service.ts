@@ -7,6 +7,17 @@ import * as argon2 from 'argon2';
 import { randomBytes, createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 
+interface RegisterData {
+  email: string;
+  password: string;
+  regNumber: string;
+  fullName: string;
+  schoolId: number;
+  programme: string;
+  yearOfStudy: number;
+  noticeVersion: string;
+}
+
 @Injectable()
 export class AuthService {
   private logger = new Logger(AuthService.name);
@@ -23,17 +34,19 @@ export class AuthService {
   }
 
   private hashRefreshToken(token: string): Buffer {
-    const pepper = process.env.REFRESH_TOKEN_PEPPER || '';
+    const pepper = process.env.REFRESH_TOKEN_PEPPER;
+    if (!pepper) throw new Error('REFRESH_TOKEN_PEPPER is not configured');
     return createHash('sha256').update(token + pepper).digest();
   }
 
-  async register(data: any, ip: string) {
+  async register(data: RegisterData, ip: string) {
     const passwordHash = await argon2.hash(data.password, { type: argon2.argon2id });
     const verifyToken = randomBytes(32).toString('hex');
     const tokenHash = this.hashToken(verifyToken);
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    await this.prisma.$transaction(async (tx: any) => {
+    // any: Prisma interactive-transaction client has no exported utility type
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const existingUser = await tx.user.findUnique({ where: { email: data.email } });
       if (existingUser) throw new ConflictException('Email already in use');
 
@@ -84,7 +97,7 @@ export class AuthService {
 
   async verifyEmail(token: string) {
     const tokenHash = this.hashToken(token);
-    await this.prisma.$transaction(async (tx: any) => {
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const emailToken = await tx.email_tokens.findUnique({ where: { token_hash: tokenHash } });
       if (!emailToken || emailToken.purpose !== 'VERIFY_EMAIL') throw new GoneException('Token invalid or expired');
       if (emailToken.used_at) throw new GoneException('Token already used');
@@ -168,7 +181,7 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  async refresh(oldRefreshToken: string, ip: string, userAgent: string) {
+  async refresh(oldRefreshToken: string, ip: string, userAgent: string): Promise<{ accessToken: string; refreshToken: string }> {
     const oldHash = this.hashRefreshToken(oldRefreshToken);
 
     const session = await this.prisma.sessions.findUnique({ where: { refresh_hash: oldHash } });
@@ -190,7 +203,7 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { id: session.user_id }, include: { student: true } });
     if (!user || !user.isActive) throw new UnauthorizedException('User deactivated');
 
-    return await this.prisma.$transaction(async (tx: any) => {
+    return await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
 
       // Revoke old
       await tx.sessions.update({
@@ -257,7 +270,7 @@ export class AuthService {
     const passwordHash = await argon2.hash(newPassword, { type: argon2.argon2id });
 
     let userId = '';
-    await this.prisma.$transaction(async (tx: any) => {
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const emailToken = await tx.email_tokens.findUnique({ where: { token_hash: tokenHash } });
       if (!emailToken || emailToken.purpose !== 'RESET_PASSWORD') throw new GoneException('Token invalid or expired');
       if (emailToken.used_at) throw new GoneException('Token already used');

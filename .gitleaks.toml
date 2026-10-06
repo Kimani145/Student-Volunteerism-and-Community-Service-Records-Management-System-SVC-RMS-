@@ -1,0 +1,33 @@
+# .gitleaks.toml
+# Gitleaks configuration for SVC-RMS.
+# Allowlists below cover ONLY synthetic dummy values in:
+#   - .env.example (placeholder strings, not real secrets)
+#   - test helper files (applyTestEnv uses well-known fake keys for unit tests)
+# No real secrets or production values are exempted here.
+
+[allowlist]
+description = "Allowlist for .env.example placeholders and test-only dummy keys"
+
+# Allow files that intentionally contain placeholder or test secrets
+paths = [
+  '''.env\.example''',
+  '''apps/api/test/test-env\.ts''',
+  '''apps/api/test/helpers/.*''',
+  '''scripts/gen-cert-key\.mjs''',
+]
+
+# Allow specific placeholder tokens that appear in example/test files only
+regexes = [
+  # Generic placeholders written into .env.example
+  '''replace-with-[a-z0-9-]+''',
+  '''base64-pem-placeholder''',
+  '''svc_app_secret''',
+  # Test-only dummy JWT secret emitted by applyTestEnv
+  '''test-jwt-secret-must-be-at-least-32-chars''',
+  # Test-only dummy pepper
+  '''test-refresh-pepper-16c''',
+  # Test-only dummy QR master secret
+  '''test-qr-master-secret-must-be-32-ch''',
+  # Test-only dummy Ed25519 key header (the full key is generated, not hardcoded)
+  '''-----BEGIN PRIVATE KEY-----''',
+]

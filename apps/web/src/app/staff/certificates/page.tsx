@@ -4,9 +4,24 @@ import { useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { RoleGate } from '@/lib/auth';
 
+interface CertificateDetails {
+  id: string;
+  status: string;
+  cvid: string;
+  issued_at: string;
+  participations?: {
+    students?: {
+      full_name?: string;
+    };
+    activities?: {
+      title?: string;
+    };
+  };
+}
+
 export default function StaffCertificatesPage() {
   const [certId, setCertId] = useState('');
-  const [cert, setCert] = useState<any>(null);
+  const [cert, setCert] = useState<CertificateDetails | null>(null);
   const [error, setError] = useState('');
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,10 +33,11 @@ export default function StaffCertificatesPage() {
     setError('');
     setActionSuccess('');
     try {
-      const data = await apiFetch<any>(`/certificates/${certId}`);
+      const data = await apiFetch<CertificateDetails>(`/certificates/${certId}`);
       setCert(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch certificate');
+    } catch (err: unknown) {
+      const apiErr = err as { message?: string };
+      setError(apiErr.message || 'Failed to fetch certificate');
       setCert(null);
     } finally {
       setLoading(false);
@@ -30,28 +46,31 @@ export default function StaffCertificatesPage() {
 
   const handleRevoke = async () => {
     if (!reason) return alert('Revocation reason is required');
+    if (!cert) return;
     try {
       await apiFetch(`/certificates/${cert.id}/revoke`, {
         method: 'POST',
         body: JSON.stringify({ reason }),
       });
       setActionSuccess('Certificate revoked successfully');
-      setCert({ ...cert, status: 'REVOKED' });
-    } catch (err: any) {
-      alert(err.message || 'Failed to revoke certificate');
+      setCert((prev) => (prev ? { ...prev, status: 'REVOKED' } : null));
+    } catch (err: unknown) {
+      const apiErr = err as { message?: string };
+      alert(apiErr.message || 'Failed to revoke certificate');
     }
   };
 
   const handleReissue = async () => {
     try {
-      const newCert = await apiFetch<any>(`/certificates/${cert.id}/reissue`, {
+      const newCert = await apiFetch<CertificateDetails>(`/certificates/${cert!.id}/reissue`, {
         method: 'POST',
       });
       setActionSuccess(`Certificate reissued successfully! New CVID: ${newCert.cvid}`);
       setCertId(newCert.id);
       setCert(newCert);
-    } catch (err: any) {
-      alert(err.message || 'Failed to reissue certificate');
+    } catch (err: unknown) {
+      const apiErr = err as { message?: string };
+      alert(apiErr.message || 'Failed to reissue certificate');
     }
   };
 

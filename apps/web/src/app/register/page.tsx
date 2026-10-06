@@ -42,8 +42,9 @@ export default function RegisterPage() {
         }),
       });
       setSuccess(true);
-    } catch (err: any) {
-      setError(err.detail || err.message || 'Registration failed. Please verify your details.');
+    } catch (err: unknown) {
+      const apiErr = err as { detail?: string; message?: string };
+      setError(apiErr.detail || apiErr.message || 'Registration failed. Please verify your details.');
     } finally {
       setLoading(false);
     }

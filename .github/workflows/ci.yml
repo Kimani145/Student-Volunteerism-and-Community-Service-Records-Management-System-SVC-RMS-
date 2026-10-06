@@ -44,6 +44,8 @@ jobs:
       LOG_LEVEL: "info"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # gitleaks scans the pushed commit range, which a shallow clone does not contain
       - uses: pnpm/action-setup@v4
         with:
           version: 10.14.0
@@ -52,6 +54,10 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Shared package compiled JS is in sync with TypeScript
+        run: |
+          pnpm --filter @svc-rms/shared build
+          git diff --exit-code packages/shared/src
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm --filter @svc-rms/api exec prisma validate

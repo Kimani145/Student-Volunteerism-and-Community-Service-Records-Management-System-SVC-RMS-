@@ -2,6 +2,34 @@ import { generateKeyPairSync } from 'crypto';
 
 let runtimeTestEdKey: string | null = null;
 
+export function databaseName(url: string): string {
+  try {
+    return decodeURIComponent(new URL(url).pathname.slice(1));
+  } catch {
+    return '';
+  }
+}
+
+export const DEFAULT_TEST_OWNER_URL = 'postgresql://postgres:postgres@127.0.0.1:5433/svc_test';
+export const DEFAULT_TEST_APP_URL = 'postgresql://svc_app:svc_app_secret@127.0.0.1:5433/svc_test';
+
+// Tests wipe tables, so they may ONLY use a database whose name ends in "_test". A dev URL
+// (for example svc_dev) in the shell or .env is skipped; set TEST_DATABASE_URL* to point at your test database.
+function firstTestUrl(candidates: Array<string | undefined>, fallback: string): string {
+  for (const candidate of candidates) {
+    if (candidate && databaseName(candidate).endsWith('_test')) return candidate;
+  }
+  return fallback;
+}
+
+export function resolveTestOwnerUrl(env: NodeJS.ProcessEnv = process.env): string {
+  return firstTestUrl([env.TEST_DATABASE_URL_MIGRATE, env.DATABASE_URL_MIGRATE], DEFAULT_TEST_OWNER_URL);
+}
+
+export function resolveTestAppUrl(env: NodeJS.ProcessEnv = process.env): string {
+  return firstTestUrl([env.TEST_DATABASE_URL, env.DATABASE_URL], DEFAULT_TEST_APP_URL);
+}
+
 export function applyTestEnv(): void {
   (BigInt.prototype as any).toJSON = function () {
     return Number(this);
@@ -9,8 +37,8 @@ export function applyTestEnv(): void {
   process.env.NODE_ENV = 'test';
   const isCI = Boolean(process.env.CI && process.env.CI !== 'false');
   if (!isCI) {
-    process.env.DATABASE_URL_MIGRATE ??= 'postgresql://postgres:postgres@127.0.0.1:5432/svc_test';
-    process.env.DATABASE_URL ??= 'postgresql://svc_app:svc_app_secret@127.0.0.1:5432/svc_test';
+    process.env.DATABASE_URL_MIGRATE = resolveTestOwnerUrl();
+    process.env.DATABASE_URL = resolveTestAppUrl();
     process.env.SVC_APP_PASSWORD ??= 'svc_app_secret';
   }
   process.env.JWT_ACCESS_SECRET = '12345678901234567890123456789012';

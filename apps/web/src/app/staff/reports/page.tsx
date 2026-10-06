@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { apiFetch, getAccessToken } from '@/lib/api-client';
+import { useState } from 'react';
+import { getAccessToken } from '@/lib/api-client';
+import { useApi } from '@/lib/use-api';
 import { RoleGate } from '@/lib/auth';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/api-states';
 
 interface ActivityReportRow {
   title: string;
@@ -15,25 +17,9 @@ interface ActivityReportRow {
 }
 
 export default function StaffReportsPage() {
-  const [activities, setActivities] = useState<ActivityReportRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-
-  useEffect(() => {
-    loadReport();
-  }, []);
-
-  const loadReport = async () => {
-    try {
-      setLoading(true);
-      const data = await apiFetch<ActivityReportRow[]>('/reports/activities');
-      setActivities(data || []);
-    } catch (err) {
-      console.error('Failed to load activity reports', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: rawData, error, loading, retry } = useApi<ActivityReportRow[]>('/reports/activities');
+  const activities = rawData || [];
 
   const downloadCsv = async () => {
     try {
@@ -80,9 +66,11 @@ export default function StaffReportsPage() {
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           {loading ? (
-            <div className="p-8 text-center text-slate-500">Loading reports...</div>
+            <LoadingState message="Loading reports..." />
+          ) : error ? (
+            <ErrorState error={error} onRetry={retry} />
           ) : activities.length === 0 ? (
-            <div className="p-12 text-center text-slate-500">No activity data recorded yet.</div>
+            <EmptyState message="No activity data recorded yet." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">

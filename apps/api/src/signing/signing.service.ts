@@ -9,12 +9,16 @@ export class SigningService {
   private keyId: string;
 
   constructor() {
-    this.keyId = process.env.CERT_SIGNING_KEY_ID || 'key-1';
+    const keyId = process.env.CERT_SIGNING_KEY_ID;
+    if (!keyId) throw new Error('CERT_SIGNING_KEY_ID is not configured');
+    this.keyId = keyId;
     this.initKeys();
   }
 
   public initKeys(): void {
-    this.keyId = process.env.CERT_SIGNING_KEY_ID || 'key-1';
+    const keyId = process.env.CERT_SIGNING_KEY_ID;
+    if (!keyId) throw new Error('CERT_SIGNING_KEY_ID is not configured');
+    this.keyId = keyId;
     const keyStr = process.env.CERT_SIGNING_PRIVATE_KEY;
     if (keyStr) {
       try {

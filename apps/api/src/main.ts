@@ -16,7 +16,7 @@ import { AuditContextInterceptor } from './prisma/audit-context.interceptor.js';
 };
 
 export async function createApp(): Promise<NestFastifyApplication> {
-  if (process.loadEnvFile) {
+  if (process.env.NODE_ENV !== 'production' && process.loadEnvFile) {
     try {
       process.loadEnvFile('.env');
     } catch {

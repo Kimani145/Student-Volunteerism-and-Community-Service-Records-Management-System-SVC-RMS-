@@ -2,7 +2,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import pg from 'pg';
 
-if (process.loadEnvFile) {
+if (process.env.NODE_ENV !== 'production' && process.loadEnvFile) {
   try {
     process.loadEnvFile();
   } catch {}
@@ -44,6 +44,16 @@ for (const migration of migrations) {
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
+  }
+}
+
+const appPassword = process.env.SVC_APP_PASSWORD;
+if (appPassword) {
+  try {
+    await client.query(`ALTER ROLE svc_app WITH PASSWORD '${appPassword}'`);
+    console.log('Set password for svc_app from SVC_APP_PASSWORD');
+  } catch (err) {
+    console.warn('Could not set svc_app password (role may not exist yet or no permission):', err.message);
   }
 }
 

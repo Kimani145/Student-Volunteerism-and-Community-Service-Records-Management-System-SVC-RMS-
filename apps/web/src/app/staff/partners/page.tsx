@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
+import { useApi } from '@/lib/use-api';
 import { RoleGate } from '@/lib/auth';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/api-states';
 
 interface Partner {
   id: string;
@@ -15,8 +17,6 @@ interface Partner {
 }
 
 export default function StaffPartnersPage() {
-  const [partners, setPartners] = useState<Partner[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [name, setName] = useState('');
   const [contactName, setContactName] = useState('');
@@ -25,21 +25,8 @@ export default function StaffPartnersPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  useEffect(() => {
-    loadPartners();
-  }, []);
-
-  const loadPartners = async () => {
-    try {
-      setLoading(true);
-      const data = await apiFetch<Partner[]>('/partners');
-      setPartners(data || []);
-    } catch (err: any) {
-      console.error('Failed to load partners', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data, error, loading, retry } = useApi<Partner[]>('/partners');
+  const partners = data || [];
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,9 +50,10 @@ export default function StaffPartnersPage() {
       setContactName('');
       setEmail('');
       setPhone('');
-      loadPartners();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.detail || err.message || 'Failed to create partner' });
+      retry();
+    } catch (err: unknown) {
+      const apiErr = err as any;
+      setMessage({ type: 'error', text: apiErr.detail || apiErr.message || 'Failed to create partner' });
     } finally {
       setSaving(false);
     }
@@ -101,11 +89,11 @@ export default function StaffPartnersPage() {
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           {loading ? (
-            <div className="p-8 text-center text-slate-500">Loading partners...</div>
+            <LoadingState message="Loading partners..." />
+          ) : error ? (
+            <ErrorState error={error} onRetry={retry} />
           ) : partners.length === 0 ? (
-            <div className="p-12 text-center text-slate-500">
-              No community partners registered yet.
-            </div>
+            <EmptyState message="No community partners registered yet." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">

@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
+import { useApi } from '@/lib/use-api';
 import { RoleGate } from '@/lib/auth';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/api-states';
 
 interface DashboardRow {
   month: string;
@@ -17,24 +19,8 @@ interface DashboardRow {
 }
 
 export default function ManagementDashboardPage() {
-  const [data, setData] = useState<DashboardRow[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadDashboard();
-  }, []);
-
-  const loadDashboard = async () => {
-    try {
-      setLoading(true);
-      const rows = await apiFetch<DashboardRow[]>('/reports/dashboard');
-      setData(rows || []);
-    } catch (err) {
-      console.error('Failed to load dashboard data', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: rawData, error, loading, retry } = useApi<DashboardRow[]>('/reports/dashboard');
+  const data = rawData || [];
 
   const totalActivities = data.reduce((sum, r) => sum + (Number(r.activities) || 0), 0);
   const totalRegistrations = data.reduce((sum, r) => sum + (Number(r.participants) || 0), 0);
@@ -92,9 +78,11 @@ export default function ManagementDashboardPage() {
           </div>
 
           {loading ? (
-            <div className="p-8 text-center text-slate-500">Loading metrics...</div>
+            <LoadingState message="Loading metrics..." />
+          ) : error ? (
+            <ErrorState error={error} onRetry={retry} />
           ) : data.length === 0 ? (
-            <div className="p-12 text-center text-slate-500">No aggregation data available yet.</div>
+            <EmptyState message="No aggregation data available yet." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">

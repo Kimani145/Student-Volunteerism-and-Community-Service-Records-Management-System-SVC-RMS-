@@ -72,10 +72,10 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
 
   if (response.status === 204) {
-    return null as any;
+    return null as unknown as T;
   }
   
   const text = await response.text();
-  if (!text) return null as any;
+  if (!text) return null as unknown as T;
   return JSON.parse(text) as T;
 }

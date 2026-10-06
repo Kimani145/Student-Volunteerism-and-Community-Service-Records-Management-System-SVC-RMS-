@@ -119,7 +119,7 @@ export class ParticipationsService {
           status: 'REGISTERED',
         },
       });
-    });
+    }, { maxWait: 10000, timeout: 30000 });
   }
 
   async cancelRegistration(activityId: string, studentId: string) {
