@@ -1,19 +1,7 @@
 # Render blueprint for the SVC-RMS API (apps/api). The web app goes on Vercel.
 # Root Directory: leave EMPTY (the repo root). pnpm workspace commands must run from the repo root.
 # Runtime: Node (NOT Docker). Do not set a Dockerfile path.
-
-databases:
-  - name: svc-rms-db
-    region: frankfurt            # must match the web service region so the internal URL works
-    plan: basic-256mb            # free Postgres expires after 30 days; use a paid plan for real data
-    postgresMajorVersion: "16"
-    databaseName: svc_prod
-    user: svc_owner              # OWNER account: used only for migrations/bootstrap from your laptop
-    # Temporary: lets you run db:migrate / db:bootstrap from your laptop.
-    # After bootstrapping, remove this entry (or restrict it to your IP) and re-sync the blueprint.
-    ipAllowList:
-      - source: 0.0.0.0/0
-        description: temporary, for migrations from laptop
+# Database: Supabase (not defined here). DATABASE_URL is the Supabase SESSION POOLER url for the svc_app role.
 
 services:
   - type: web
@@ -46,8 +34,8 @@ services:
         value: "24"
       - key: LOG_LEVEL
         value: info
-      # --- database: the least-privilege svc_app role, NOT the owner. Render prompts for this value.
-      #     Format: postgresql://svc_app:<SVC_APP_PASSWORD>@<INTERNAL host>:5432/svc_prod
+      # --- database: least-privilege svc_app role via the Supabase SESSION pooler (port 5432), NOT the postgres owner.
+      #     Format: postgresql://svc_app.<project-ref>:<SVC_APP_PASSWORD>@<pooler-host>:5432/postgres?sslmode=require&connection_limit=5
       - key: DATABASE_URL
         sync: false
       # --- secrets: Render generates strong random values ---
