@@ -1,6 +1,8 @@
 import { PrismaClient } from '@prisma/client';
+import { resolveTestOwnerUrl } from '../test-env.js';
 
-const url = process.env.DATABASE_URL_MIGRATE || process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5433/svc_test';
+// Resolved at import time (global setup imports this before applyTestEnv runs), so it must not depend on it.
+const url = resolveTestOwnerUrl();
 export const ownerPrisma = new PrismaClient({
   datasources: {
     db: { url }

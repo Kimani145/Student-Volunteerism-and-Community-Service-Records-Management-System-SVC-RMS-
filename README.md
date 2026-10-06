@@ -20,6 +20,8 @@ Type emails in lowercase. Five wrong passwords lock an account for 15 minutes (`
 - **`svc_dev`** holds your demo data. `pnpm dev:reset` rebuilds it.
 - **`svc_test`** belongs to the test suite and is **wiped on every `pnpm test` run**. The test helpers refuse to run against any database whose
   name does not end in `_test`. Never point `.env` at `svc_test`, or your demo accounts will vanish and login will say "Invalid credentials".
+  If your Postgres is not on port 5433, tell the tests where `svc_test` is:
+  `export TEST_DATABASE_URL_MIGRATE=postgresql://postgres:postgres@127.0.0.1:<port>/svc_test TEST_DATABASE_URL=postgresql://svc_app:svc_app_secret@127.0.0.1:<port>/svc_test`
 
 ### Hosting
 See `docs/DEPLOY.md` (Render for the API, Vercel for the web app, `pnpm db:bootstrap` for the first admin).

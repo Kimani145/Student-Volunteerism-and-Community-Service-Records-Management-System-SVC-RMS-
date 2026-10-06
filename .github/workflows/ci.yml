@@ -44,6 +44,8 @@ jobs:
       LOG_LEVEL: "info"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # gitleaks scans the pushed commit range, which a shallow clone does not contain
       - uses: pnpm/action-setup@v4
         with:
           version: 10.14.0
