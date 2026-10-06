@@ -1,3 +1,6 @@
+# Render blueprint for the SVC-RMS API (apps/api). The web app goes on Vercel (see steps in chat).
+# Replaces the previous render.yaml. Differences: no rootDir (workspace commands run from the repo root),
+# Node 24, builds the shared package, health check, ALL env vars the API validates at boot, optional disk.
 services:
   - type: web
     name: svc-rms-api
