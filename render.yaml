@@ -1,21 +1,40 @@
-# Render blueprint for the SVC-RMS API (apps/api). The web app goes on Vercel (see steps in chat).
-# Replaces the previous render.yaml. Differences: no rootDir (workspace commands run from the repo root),
-# Node 24, builds the shared package, health check, ALL env vars the API validates at boot, optional disk.
+# Render blueprint for the SVC-RMS API (apps/api). The web app goes on Vercel.
+# Root Directory: leave EMPTY (the repo root). pnpm workspace commands must run from the repo root.
+# Runtime: Node (NOT Docker). Do not set a Dockerfile path.
+
+databases:
+  - name: svc-rms-db
+    region: frankfurt            # must match the web service region so the internal URL works
+    plan: basic-256mb            # free Postgres expires after 30 days; use a paid plan for real data
+    postgresMajorVersion: "16"
+    databaseName: svc_prod
+    user: svc_owner              # OWNER account: used only for migrations/bootstrap from your laptop
+    # Temporary: lets you run db:migrate / db:bootstrap from your laptop.
+    # After bootstrapping, remove this entry (or restrict it to your IP) and re-sync the blueprint.
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: temporary, for migrations from laptop
+
 services:
   - type: web
     name: svc-rms-api
     runtime: node
     region: frankfurt            # closest Render region to Nairobi; data is stored OUTSIDE Kenya (see SRS A-05)
-    plan: starter                # free plan sleeps after idle and has no disk; see notes
+    plan: starter                # free plan sleeps and has no disk; disks need a paid plan
+    branch: main
+    autoDeployTrigger: commit
+    # NODE_ENV=production is also set during the BUILD, and pnpm then skips devDependencies
+    # (prisma, typescript...). --prod=false installs them so `prisma generate` and `tsc` work.
     buildCommand: >-
       corepack enable &&
-      pnpm install --frozen-lockfile &&
+      pnpm install --frozen-lockfile --prod=false &&
       pnpm --filter @svc-rms/shared exec tsc &&
+      pnpm --filter @svc-rms/api exec prisma generate --schema prisma/schema.prisma &&
       pnpm --filter @svc-rms/api build
     startCommand: pnpm --filter @svc-rms/api start
     healthCheckPath: /api/v1/healthz
     # Uploads (records) and the certificate PDF cache are written to STORAGE_ROOT.
-    # Without a disk they are LOST on every deploy/restart. Disks need a paid plan.
+    # Without a disk they are LOST on every deploy/restart.
     disk:
       name: svc-data
       mountPath: /var/data
@@ -27,7 +46,8 @@ services:
         value: "24"
       - key: LOG_LEVEL
         value: info
-      # --- database (the least-privilege svc_app role, NOT the owner; see steps) ---
+      # --- database: the least-privilege svc_app role, NOT the owner. Render prompts for this value.
+      #     Format: postgresql://svc_app:<SVC_APP_PASSWORD>@<INTERNAL host>:5432/svc_prod
       - key: DATABASE_URL
         sync: false
       # --- secrets: Render generates strong random values ---
@@ -37,18 +57,18 @@ services:
         generateValue: true
       - key: QR_MASTER_SECRET
         generateValue: true
-      # --- certificate signing key: generate locally with `node apps/api/src/scripts/gen-cert-key.mjs`, paste here ---
+      # --- certificate signing key: `node apps/api/src/scripts/gen-cert-key.mjs`, paste both values ---
       - key: CERT_SIGNING_PRIVATE_KEY
         sync: false
       - key: CERT_SIGNING_KEY_ID
         sync: false
-      # --- public URL of the Vercel site (used in certificate QR codes and emails) ---
+      # --- public URL of the Vercel site, no trailing slash (certificate QR codes and emails) ---
       - key: PUBLIC_WEB_ORIGIN
         sync: false
       # --- registration + email ---
-      - key: ALLOWED_STUDENT_EMAIL_DOMAINS   # comma-separated REAL TUK student email domain(s); students cannot register without it
+      - key: ALLOWED_STUDENT_EMAIL_DOMAINS   # comma-separated REAL student email domain(s)
         sync: false
-      - key: SMTP_URL                        # required: email verification and password reset depend on it
+      - key: SMTP_URL
         sync: false
       - key: MAIL_FROM
         sync: false
